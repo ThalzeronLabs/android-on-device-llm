@@ -7,24 +7,51 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+/** Thalzeron Labs palette: near-black surfaces with a single bright yellow accent. */
+object Brand {
+    val Yellow = Color(0xFFFFD600)
+    val YellowDim = Color(0xFFB89A00)
+    val Black = Color(0xFF121212)
+    val Graphite = Color(0xFF2C2C2E)
+    val Graphite2 = Color(0xFF1C1C1E)
+    val Muted = Color(0xFF8E8E93)
+    val Green = Color(0xFF34C759)
+}
+
 private val Dark = darkColorScheme(
-    primary = Color(0xFF4DD0E1),
-    onPrimary = Color(0xFF00363D),
-    primaryContainer = Color(0xFF004F58),
-    onPrimaryContainer = Color(0xFF97F0FF),
-    secondaryContainer = Color(0xFF2A2F3A),
-    onSecondaryContainer = Color(0xFFDDE3EE),
-    background = Color(0xFF0E1117),
-    surface = Color(0xFF0E1117),
-    surfaceVariant = Color(0xFF1B2029),
-    onSurfaceVariant = Color(0xFFB8C2D1),
+    primary = Brand.Yellow,
+    onPrimary = Brand.Black,
+    primaryContainer = Brand.Yellow,
+    onPrimaryContainer = Brand.Black,
+    secondary = Brand.Muted,
+    secondaryContainer = Brand.Graphite,
+    onSecondaryContainer = Color(0xFFF2F2F7),
+    background = Brand.Black,
+    onBackground = Color(0xFFF2F2F7),
+    surface = Brand.Black,
+    onSurface = Color(0xFFF2F2F7),
+    surfaceVariant = Brand.Graphite2,
+    onSurfaceVariant = Brand.Muted,
+    surfaceContainer = Brand.Graphite2,
+    surfaceContainerHigh = Brand.Graphite,
+    outline = Color(0xFF3A3A3C),
+    error = Color(0xFFFF453A),
 )
 
 private val Light = lightColorScheme(
-    primary = Color(0xFF006874),
-    primaryContainer = Color(0xFF97F0FF),
-    onPrimaryContainer = Color(0xFF001F24),
-    secondaryContainer = Color(0xFFE3E8F0),
+    primary = Color(0xFF1C1C1E),
+    onPrimary = Brand.Yellow,
+    primaryContainer = Brand.Yellow,
+    onPrimaryContainer = Brand.Black,
+    secondaryContainer = Color(0xFFE5E5EA),
+    onSecondaryContainer = Brand.Black,
+    background = Color(0xFFF7F7F9),
+    surface = Color(0xFFF7F7F9),
+    surfaceVariant = Color(0xFFEDEDF0),
+    onSurfaceVariant = Color(0xFF6C6C70),
+    surfaceContainer = Color(0xFFEDEDF0),
+    surfaceContainerHigh = Color(0xFFE5E5EA),
+    outline = Color(0xFFD1D1D6),
 )
 
 @Composable
