@@ -15,13 +15,29 @@ android {
         versionName = "0.1.0"
     }
 
+    // Release APKs on GitHub are signed with a throwaway demo key that the release workflow generates on the fly
+    // (see .github/workflows/release.yml). No key is stored in this repository. Without those variables, a local
+    // release build falls back to the debug key so `./gradlew :app:assembleRelease` still produces an installable APK.
+    val demoKeystore = System.getenv("DEMO_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile }
+    signingConfigs {
+        if (demoKeystore != null) {
+            create("demo") {
+                storeFile = demoKeystore
+                storePassword = System.getenv("DEMO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DEMO_KEY_ALIAS")
+                keyPassword = System.getenv("DEMO_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Showcase build: signed with the debug key so anyone can install the APK from Releases.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("demo") ?: signingConfigs.getByName("debug")
+            // Phones only: every 64-bit ARM phone, and a smaller download. Debug builds keep x86_64 for emulators.
+            ndk { abiFilters += "arm64-v8a" }
         }
     }
 
