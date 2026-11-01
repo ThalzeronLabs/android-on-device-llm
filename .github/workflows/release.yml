@@ -1,23 +1,45 @@
 name: Release
 
 # Push a tag like v0.1.0 → this builds the arm64-v8a release APK and attaches it to a GitHub release.
+# Or run it by hand on main ("Run workflow", tag = v0.1.0): it creates that tag on the current commit and releases it.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create on this commit and release, e.g. v0.1.0"
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # A manual run may only release main.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Check that a manual run does not move an existing tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "::error::Tag must look like v1.2.3, got $TAG"; exit 1 ;; esac
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            target=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
+            if [ "$target" != "$GITHUB_SHA" ]; then
+              echo "::error::$TAG already exists on $target, not on $GITHUB_SHA"
+              exit 1
+            fi
+          fi
 
       - name: Check that the tag matches versionName
         run: |
@@ -121,5 +143,7 @@ jobs:
             gh release upload "$TAG" dist/* --clobber
             gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
-            gh release create "$TAG" dist/* --title "On-device LLM $TAG" --notes-file "$RUNNER_TEMP/notes.md"
+            # --target creates the tag on this commit when the run was started by hand.
+            gh release create "$TAG" dist/* --target "$GITHUB_SHA" \
+              --title "On-device LLM $TAG" --notes-file "$RUNNER_TEMP/notes.md"
           fi
