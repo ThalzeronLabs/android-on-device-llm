@@ -53,7 +53,7 @@ remote config or any network call besides downloading a model file the user aske
 ## Releases (maintainers)
 
 Bump `versionName`/`versionCode` in `app/build.gradle.kts`, move the `Unreleased` notes into a new version in
-`CHANGELOG.md`, merge, then push a tag `vX.Y.Z`. The [release workflow](.github/workflows/release.yml) builds the
-APK and publishes the GitHub release.
+`CHANGELOG.md`, merge, then push a tag `vX.Y.Z` (or run the **Release** workflow by hand on `main` with that tag).
+The [release workflow](.github/workflows/release.yml) builds the APK and publishes the GitHub release.
 
 By contributing you agree that your contribution is licensed under the [Apache-2.0 license](LICENSE).
