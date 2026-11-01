@@ -88,6 +88,7 @@ private val Suggestions = listOf(
 fun ChatScreen(
     state: ChatUiState,
     onDownload: () -> Unit,
+    onPauseDownload: () -> Unit,
     onPickFile: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
@@ -105,7 +106,7 @@ fun ChatScreen(
                     label = "screen",
                 ) { ready ->
                     if (ready) Conversation(state, onSend, onStop)
-                    else ModelSetup(state.model, state.modelName, state.modelSizeMb, onDownload, onPickFile)
+                    else ModelSetup(state.model, state.modelName, state.modelSizeMb, onDownload, onPauseDownload, onPickFile)
                 }
             }
         }
@@ -207,13 +208,23 @@ private fun Orb(size: Dp, active: Boolean = false) {
 }
 
 @Composable
-private fun ModelSetup(model: ModelState, name: String, sizeMb: Long, onDownload: () -> Unit, onPickFile: () -> Unit) {
+private fun ModelSetup(
+    model: ModelState,
+    name: String,
+    sizeMb: Long,
+    onDownload: () -> Unit,
+    onPause: () -> Unit,
+    onPickFile: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Orb(size = 120.dp, active = model is ModelState.Downloading || model == ModelState.Loading)
+        Orb(
+            size = 120.dp,
+            active = model is ModelState.Downloading || model is ModelState.Verifying || model == ModelState.Loading,
+        )
         Spacer(Modifier.height(28.dp))
         Text(
             "Private AI, on your phone",
@@ -232,43 +243,81 @@ private fun ModelSetup(model: ModelState, name: String, sizeMb: Long, onDownload
         Spacer(Modifier.height(28.dp))
         when (model) {
             is ModelState.Downloading -> {
-                LinearProgressIndicator(
-                    progress = { model.progress },
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                Progress(model.progress)
+                Caption(
+                    (if (model.resumed) "Resuming · " else "") +
+                        "${model.bytes.mb()} of ${model.total.mb()} MB · ${(model.progress * 100).toInt()}%"
                 )
+                Spacer(Modifier.height(20.dp))
+                SecondaryButton("Pause", onPause)
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    "${(model.progress * sizeMb).toInt()} of $sizeMb MB",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Caption("If the connection drops, it picks up where it stopped.")
             }
-            ModelState.Loading -> Text(
-                "Loading the model into memory…",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            is ModelState.Paused -> {
+                Progress(model.bytes.toFloat() / model.total.coerceAtLeast(1))
+                Caption("Paused at ${model.bytes.mb()} of ${model.total.mb()} MB")
+                Spacer(Modifier.height(20.dp))
+                PrimaryButton("Resume download", onDownload)
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton("I already have a .gguf file", onPickFile)
+            }
+            is ModelState.Verifying -> {
+                Progress(model.progress)
+                Caption("Checking the file's SHA-256…")
+            }
+            ModelState.Loading -> Caption("Loading the model into memory…")
             else -> {
                 if (model is ModelState.Failed) {
                     Text(model.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                 }
-                Button(
-                    onClick = onDownload,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                ) { Text("Download the model", fontWeight = FontWeight.SemiBold) }
+                PrimaryButton(if (model is ModelState.Failed) "Try again" else "Download the model", onDownload)
                 Spacer(Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = onPickFile,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                ) { Text("I already have a .gguf file") }
+                SecondaryButton("I already have a .gguf file", onPickFile)
             }
         }
     }
 }
+
+@Composable
+private fun Progress(fraction: Float) {
+    LinearProgressIndicator(
+        progress = { fraction },
+        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
+        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    )
+    Spacer(Modifier.height(10.dp))
+}
+
+@Composable
+private fun Caption(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+private fun PrimaryButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) { Text(text, fontWeight = FontWeight.SemiBold) }
+}
+
+@Composable
+private fun SecondaryButton(text: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) { Text(text) }
+}
+
+private fun Long.mb(): Long = this / 1_000_000
 
 @Composable
 private fun Conversation(state: ChatUiState, onSend: (String) -> Unit, onStop: () -> Unit) {
@@ -460,7 +509,7 @@ private fun ModelInfo(state: ChatUiState) {
         }
         Spacer(Modifier.height(20.dp))
         InfoRow("Model", state.modelName)
-        InfoRow("Size", "${state.modelSizeMb} MB, 4-bit quantized")
+        InfoRow("Size", "${state.modelSizeMb} MB on disk")
         InfoRow("Engine", "llama.cpp on the CPU (ARM dot-product)")
         InfoRow("Speed", state.tokensPerSecond?.let { String.format(Locale.US, "%.1f tokens per second", it) } ?: "Ask something first")
         InfoRow("Privacy", "No server, no account, no network calls while chatting")
@@ -492,7 +541,7 @@ private fun ChatPreview() {
                 ),
                 tokensPerSecond = 18.4,
             ),
-            onDownload = {}, onPickFile = {}, onSend = {}, onStop = {}, onClear = {},
+            onDownload = {}, onPauseDownload = {}, onPickFile = {}, onSend = {}, onStop = {}, onClear = {},
         )
     }
 }

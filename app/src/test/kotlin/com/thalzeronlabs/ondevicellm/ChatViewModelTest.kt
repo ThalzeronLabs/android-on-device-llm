@@ -2,6 +2,7 @@ package com.thalzeronlabs.ondevicellm
 
 import com.thalzeronlabs.llama.ChatMessage
 import com.thalzeronlabs.ondevicellm.data.ChatEngine
+import com.thalzeronlabs.ondevicellm.data.DownloadProgress
 import com.thalzeronlabs.ondevicellm.data.ModelSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,7 +10,9 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -50,15 +53,26 @@ class ChatViewModelTest {
         override fun close() {}
     }
 
-    private inner class FakeSource(ready: Boolean, private val progress: List<Float> = listOf(0.5f, 1f)) : ModelSource {
+    private inner class FakeSource(
+        ready: Boolean,
+        var partial: Long = 0,
+        private val downloadFlow: Flow<DownloadProgress>? = null,
+    ) : ModelSource {
         override val modelFile: File = tmp.newFile("model.gguf").apply { if (ready) writeText("GGUF") else delete() }
-        override val displayName = "Tiny"
+        override var displayName = "Tiny"
         override val approximateBytes = 5_000_000L
-        override fun download(): Flow<Float> = flow {
-            progress.forEach { emit(it) }
+        val seen = mutableListOf<ModelState>()
+        override fun partialBytes() = partial
+        override fun download(): Flow<DownloadProgress> = downloadFlow ?: flow {
+            emit(DownloadProgress.Transferring(2_500_000, 5_000_000, resumedFrom = partial))
+            emit(DownloadProgress.Transferring(5_000_000, 5_000_000, resumedFrom = partial))
+            emit(DownloadProgress.Verifying(5_000_000, 5_000_000))
             modelFile.writeText("GGUF")
         }
-        override suspend fun import(input: InputStream) = modelFile.writeBytes(input.readBytes())
+        override suspend fun import(input: InputStream, name: String?) {
+            modelFile.writeBytes(input.readBytes())
+            displayName = name ?: "Imported"
+        }
     }
 
     @Test
@@ -160,5 +174,78 @@ class ChatViewModelTest {
         vm.send("hi"); advanceUntilIdle()
         vm.clear()
         assertTrue(vm.state.value.messages.isEmpty())
+    }
+
+    @Test
+    fun `download progress goes through Downloading and Verifying`() = runTest(dispatcher) {
+        val vm = ChatViewModel(FakeEngine(), FakeSource(ready = false))
+        val states = mutableListOf<ModelState>()
+        val watcher = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect { states += it.model } }
+        vm.download()
+        advanceUntilIdle()
+        watcher.cancel()
+        assertTrue(states.contains(ModelState.Downloading(0.5f, 2_500_000, 5_000_000)))
+        assertTrue(states.contains(ModelState.Verifying(1f)))
+        assertEquals(ModelState.Ready, states.last())
+    }
+
+    @Test
+    fun `an unfinished download shows as Paused on start`() = runTest(dispatcher) {
+        val vm = ChatViewModel(FakeEngine(), FakeSource(ready = false, partial = 1_000_000))
+        advanceUntilIdle()
+        assertEquals(ModelState.Paused(1_000_000, 5_000_000), vm.state.value.model)
+    }
+
+    @Test
+    fun `pause stops the download and keeps its progress`() = runTest(dispatcher) {
+        val source = FakeSource(
+            ready = false,
+            downloadFlow = flow {
+                emit(DownloadProgress.Transferring(1_000_000, 5_000_000, resumedFrom = 0))
+                awaitCancellation()
+            },
+        )
+        val vm = ChatViewModel(FakeEngine(), source)
+        vm.download()
+        advanceUntilIdle()
+        assertEquals(ModelState.Downloading(0.2f, 1_000_000, 5_000_000), vm.state.value.model)
+
+        source.partial = 1_000_000
+        vm.pauseDownload()
+        advanceUntilIdle()
+
+        assertEquals(ModelState.Paused(1_000_000, 5_000_000), vm.state.value.model)
+    }
+
+    @Test
+    fun `auto download starts by itself and ends Ready`() = runTest(dispatcher) {
+        val vm = ChatViewModel(FakeEngine(), FakeSource(ready = false), autoDownload = true)
+        advanceUntilIdle()
+        assertEquals(ModelState.Ready, vm.state.value.model)
+    }
+
+    @Test
+    fun `a failed download can be retried`() = runTest(dispatcher) {
+        var calls = 0
+        val source = FakeSource(ready = false, downloadFlow = flow {
+            if (calls++ == 0) throw java.io.IOException("offline")
+            emit(DownloadProgress.Verifying(5_000_000, 5_000_000))
+        })
+        val vm = ChatViewModel(FakeEngine(), source)
+        vm.download(); advanceUntilIdle()
+        assertEquals(ModelState.Failed("Download failed: offline"), vm.state.value.model)
+
+        source.modelFile.writeText("GGUF")
+        vm.download(); advanceUntilIdle()
+        assertEquals(ModelState.Ready, vm.state.value.model)
+    }
+
+    @Test
+    fun `an imported model shows its own name`() = runTest(dispatcher) {
+        val vm = ChatViewModel(FakeEngine(), FakeSource(ready = false))
+        vm.import("GGUF".byteInputStream(), "Phi-3-mini")
+        advanceUntilIdle()
+        assertEquals(ModelState.Ready, vm.state.value.model)
+        assertEquals("Phi-3-mini", vm.state.value.modelName)
     }
 }
