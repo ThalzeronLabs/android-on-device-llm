@@ -1,6 +1,9 @@
 package com.thalzeronlabs.ondevicellm
 
+import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -22,18 +25,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val factory = viewModelFactory {
-            initializer { ChatViewModel(LlamaChatEngine(), HttpModelSource(applicationContext.filesDir)) }
+            initializer {
+                ChatViewModel(
+                    engine = LlamaChatEngine(),
+                    source = HttpModelSource(applicationContext.filesDir),
+                    // First launch on Wi-Fi: the model downloads by itself. On mobile data, ask first (~491 MB).
+                    autoDownload = isOnUnmeteredNetwork(),
+                )
+            }
         }
         setContent {
             OnDeviceLlmTheme {
                 val vm: ChatViewModel = viewModel(factory = factory)
                 val state by vm.state.collectAsStateWithLifecycle()
                 val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                    uri?.let { contentResolver.openInputStream(it) }?.let(vm::import)
+                    if (uri != null) contentResolver.openInputStream(uri)?.let { vm.import(it, displayName(uri)) }
                 }
                 ChatScreen(
                     state = state,
                     onDownload = vm::download,
+                    onPauseDownload = vm::pauseDownload,
                     onPickFile = { picker.launch(arrayOf("application/octet-stream", "*/*")) },
                     onSend = vm::send,
                     onStop = vm::stop,
@@ -42,4 +53,14 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun isOnUnmeteredNetwork(): Boolean {
+        val connectivity = getSystemService(ConnectivityManager::class.java) ?: return false
+        return connectivity.activeNetwork != null && !connectivity.isActiveNetworkMetered
+    }
+
+    private fun displayName(uri: Uri): String? =
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
 }

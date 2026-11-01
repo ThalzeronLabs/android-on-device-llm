@@ -1,93 +1,80 @@
 package com.thalzeronlabs.ondevicellm.data
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 /** Where the model file lives and how it gets there. */
 interface ModelSource {
     val modelFile: File
+
+    /** Name of the model on disk, or of the one that will be downloaded. */
     val displayName: String
+
+    /** Size of the default download. */
     val approximateBytes: Long
+
     fun isReady(): Boolean = modelFile.isFile && modelFile.length() > 0
 
-    /** Downloads the model, emitting progress from 0f to 1f. */
-    fun download(): Flow<Float>
+    /** Bytes of an unfinished download that the next [download] will continue from. */
+    fun partialBytes(): Long = 0
 
-    /** Copies a user-picked GGUF file into app storage. */
-    suspend fun import(input: InputStream)
+    /** Downloads (or resumes downloading) the default model, then verifies it. */
+    fun download(): Flow<DownloadProgress>
+
+    /** Copies a user-picked GGUF file into app storage, replacing the current model. */
+    suspend fun import(input: InputStream, name: String? = null)
 }
 
 /**
- * Downloads a small chat model from Hugging Face into app-private storage.
- * The download goes to a `.part` file first, so a cancelled or failed download never looks like a valid model.
+ * The default model comes from Hugging Face through [ModelDownloader]; the user can also bring their own `.gguf`.
+ * Whatever is installed lives at `model.gguf` in app-private storage.
  */
 class HttpModelSource(
     filesDir: File,
-    private val url: String = QWEN_0_5B_URL,
-    override val displayName: String = "Qwen2.5 0.5B Instruct (Q4_K_M)",
-    override val approximateBytes: Long = 491_400_032L,
+    private val spec: ModelSpec = ModelSpec.QWEN_2_5_0_5B_Q4_K_M,
+    transport: HttpTransport = UrlConnectionTransport(),
 ) : ModelSource {
 
     override val modelFile = File(filesDir, "model.gguf")
 
-    override fun download(): Flow<Float> = flow {
-        val part = File(modelFile.path + ".part")
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.instanceFollowRedirects = true
-        connection.connectTimeout = 15_000
-        connection.readTimeout = 30_000
-        try {
-            if (connection.responseCode !in 200..299) throw IOException("HTTP ${connection.responseCode}")
-            val total = connection.contentLengthLong.takeIf { it > 0 } ?: approximateBytes
-            connection.inputStream.use { input ->
-                part.outputStream().use { output ->
-                    val buffer = ByteArray(1 shl 16)
-                    var copied = 0L
-                    var lastEmitted = -1
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        output.write(buffer, 0, read)
-                        copied += read
-                        val percent = (copied * 100 / total).toInt()
-                        if (percent != lastEmitted) {
-                            lastEmitted = percent
-                            emit((copied.toFloat() / total).coerceAtMost(1f))
-                        }
-                    }
-                }
-            }
-            if (!part.renameTo(modelFile)) throw IOException("Could not move the downloaded model into place")
-            emit(1f)
-        } finally {
-            connection.disconnect()
-            if (part.exists()) part.delete()
-        }
-    }.flowOn(Dispatchers.IO)
+    /** Holds the name of an imported model; absent when the default model is installed. */
+    private val labelFile = File(filesDir, "model.label")
 
-    override suspend fun import(input: InputStream) {
-        val part = File(modelFile.path + ".part")
-        input.use { source -> part.outputStream().use { source.copyTo(it, 1 shl 16) } }
-        val magic = part.inputStream().use { it.readNBytes(4) }
-        if (!magic.contentEquals("GGUF".toByteArray())) {
-            part.delete()
-            throw IOException("That file is not a GGUF model.")
-        }
-        if (!part.renameTo(modelFile)) throw IOException("Could not move the model into place")
+    private val downloader = ModelDownloader(spec, modelFile, transport)
+
+    override val displayName: String
+        get() = labelFile.takeIf { isReady() && it.isFile }?.readText()?.trim()?.ifEmpty { null } ?: spec.displayName
+
+    override val approximateBytes: Long = spec.sizeBytes
+
+    override fun partialBytes(): Long = downloader.partialBytes()
+
+    override fun download(): Flow<DownloadProgress> {
+        labelFile.delete()
+        return downloader.download()
     }
 
-    companion object {
-        const val QWEN_0_5B_URL =
-            "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+    override suspend fun import(input: InputStream, name: String?): Unit = withContext(Dispatchers.IO) {
+        // A separate temp file, so importing never clobbers a half-finished download.
+        val temp = File(modelFile.path + ".import")
+        try {
+            input.use { source -> temp.outputStream().use { source.copyTo(it, 1 shl 16) } }
+            // InputStream.readNBytes() only exists from API 33; minSdk is 26.
+            val magic = ByteArray(4)
+            val read = temp.inputStream().use { it.read(magic) }
+            if (read != 4 || !magic.contentEquals("GGUF".toByteArray())) {
+                throw IOException("That file is not a GGUF model.")
+            }
+            if (modelFile.exists()) modelFile.delete()
+            if (!temp.renameTo(modelFile)) throw IOException("Could not move the model into place")
+            val label = name?.removeSuffix(".gguf")?.trim().orEmpty()
+            if (label.isEmpty()) labelFile.delete() else labelFile.writeText(label)
+        } finally {
+            temp.delete()
+        }
     }
 }

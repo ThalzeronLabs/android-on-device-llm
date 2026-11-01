@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as expected.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: "Pixel 7, Android 15"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: The release you installed (for example v0.1.0), or a commit if you built it yourself.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The default Qwen2.5 0.5B download, or the name of the .gguf file you imported.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: "Optional. `adb logcat` output around the problem helps a lot."
+      render: text
