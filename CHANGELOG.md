@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-02
+
+**From v0.2.1 on, updates install over the previous version; v0.2.0 users must uninstall once.**
+
+### Added
+
+- Screenshot tests with Roborazzi: nine screens (chat, model catalog, conversations, chat settings, battery saver)
+  in light and dark, rendered on the JVM. CI compares them with `docs/screenshots/`, and the README shows them.
+
+### Changed
+
+- Releases are signed with a fixed Thalzeron Labs demo key kept in the repository's Actions secrets (showcase apps
+  only, never Google Play), so new versions update over the previous one. The release workflow checks the
+  certificate against the published SHA-256 and falls back to a throwaway key when the secrets are missing.
+
+### Fixed
+
+- Text in the conversation drawer and the bottom sheets was drawn in the secondary (grey) color in both themes,
+  because one theme color matched the container color. A unit test now checks the text color on every container.
+
 ## [0.2.0] - 2026-11-02
 
 ### Added
@@ -56,6 +76,7 @@ First public release.
   the workflow and attaches it, with its SHA-256, to a GitHub release.
 - Unit tests for the downloader (fake server and a real local HTTP socket), the model source and the ViewModel.
 
-[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ThalzeronLabs/android-on-device-llm/releases/tag/v0.1.0
