@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -12,12 +13,13 @@ android {
         applicationId = "com.thalzeronlabs.ondevicellm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
 
-    // Release APKs on GitHub are signed with a throwaway demo key that the release workflow generates on the fly
-    // (see .github/workflows/release.yml). No key is stored in this repository. Without those variables, a local
+    // Release APKs on GitHub are signed with the Thalzeron Labs demo key (showcase apps only, never Google Play),
+    // which the release workflow reads from the repository's Actions secrets; without them it generates a throwaway
+    // key (see .github/workflows/release.yml). No key is stored in this repository. Without those variables, a local
     // release build falls back to the debug key so `./gradlew :app:assembleRelease` still produces an installable APK.
     val demoKeystore = System.getenv("DEMO_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile }
     signingConfigs {
@@ -26,7 +28,7 @@ android {
                 storeFile = demoKeystore
                 storePassword = System.getenv("DEMO_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("DEMO_KEY_ALIAS")
-                keyPassword = System.getenv("DEMO_KEYSTORE_PASSWORD")
+                keyPassword = System.getenv("DEMO_KEY_PASSWORD") ?: System.getenv("DEMO_KEYSTORE_PASSWORD")
             }
         }
     }
@@ -56,6 +58,11 @@ android {
         // Robolectric (Room, Compose UI and Android framework tests on the JVM) needs the merged resources.
         unitTests.isIncludeAndroidResources = true
     }
+}
+
+roborazzi {
+    // The README screenshots: `./gradlew :app:recordRoborazziDebug` rewrites them, CI verifies them.
+    outputDir.set(file("../docs/screenshots"))
 }
 
 ksp {
@@ -90,4 +97,7 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
 }

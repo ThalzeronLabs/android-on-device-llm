@@ -50,6 +50,8 @@ fun HistoryDrawer(
     onOpen: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
     onDelete: (Long) -> Unit,
+    /** "5 minutes ago" is relative to this; fixed in screenshot tests. */
+    now: Long = System.currentTimeMillis(),
 ) {
     var renaming by remember { mutableStateOf<ConversationSummary?>(null) }
     var deleting by remember { mutableStateOf<ConversationSummary?>(null) }
@@ -74,6 +76,7 @@ fun HistoryDrawer(
                     ConversationRow(
                         conversation = conversation,
                         selected = conversation.id == state.conversationId,
+                        now = now,
                         onOpen = { onOpen(conversation.id) },
                         onRename = { renaming = conversation },
                         onDelete = { deleting = conversation },
@@ -108,6 +111,7 @@ fun HistoryDrawer(
 private fun ConversationRow(
     conversation: ConversationSummary,
     selected: Boolean,
+    now: Long,
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -134,7 +138,7 @@ private fun ConversationRow(
             Text(
                 DateUtils.getRelativeTimeSpanString(
                     conversation.updatedAt,
-                    System.currentTimeMillis(),
+                    now,
                     DateUtils.MINUTE_IN_MILLIS,
                 ).toString() + " · ${conversation.messageCount} messages",
                 style = MaterialTheme.typography.labelMedium,

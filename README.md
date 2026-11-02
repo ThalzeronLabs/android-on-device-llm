@@ -18,9 +18,14 @@
 
 ### Screenshots
 
-<!-- Space reserved for v0.2.0 screenshots (conversation list, model picker, chat settings, battery saver,
-     light and dark). The project has no screenshot tests yet; add the images to docs/ and list them here. -->
-_Coming soon: conversation list · model picker · chat settings · battery saver · light and dark themes._
+| Chat | Model catalog | Conversations | Chat settings | Battery saver |
+|---|---|---|---|---|
+| <img src="docs/screenshots/chat-dark.png" width="160" alt="A conversation, dark theme"> | <img src="docs/screenshots/models-dark.png" width="160" alt="Model catalog with size, license and Hugging Face link"> | <img src="docs/screenshots/history-dark.png" width="160" alt="Saved conversations"> | <img src="docs/screenshots/settings-dark.png" width="160" alt="System prompt, temperature and answer length"> | <img src="docs/screenshots/battery-saver-light.png" width="160" alt="Low battery banner with Stop"> |
+| <img src="docs/screenshots/chat-light.png" width="160" alt="A conversation, light theme"> | <img src="docs/screenshots/models-light.png" width="160" alt="Model catalog, light theme"> | <img src="docs/screenshots/history-light.png" width="160" alt="Saved conversations, light theme"> | <img src="docs/screenshots/settings-light.png" width="160" alt="Chat settings, light theme"> | |
+
+These are rendered from the real Compose screens by screenshot tests
+([`ScreenshotTest.kt`](app/src/test/kotlin/com/thalzeronlabs/ondevicellm/ui/ScreenshotTest.kt), Roborazzi on
+Robolectric), so they always match the code: CI fails when the UI changes without updating them.
 
 ## Try it in 1 minute
 
@@ -30,8 +35,11 @@ _Coming soon: conversation list · model picker · chat settings · battery save
 3. **Open On-device LLM.** On Wi-Fi the default model (Qwen2.5 0.5B, 491 MB) downloads by itself; on mobile data
    you pick a model first. When the bar finishes, turn on airplane mode and ask something: it still answers.
 
-The release APK is a **demo build, not from Google Play**: it is signed with a throwaway key that the
-[release workflow](.github/workflows/release.yml) generates for each build, and its SHA-256 is in the release notes.
+The release APK is a **demo build, not from Google Play**. From v0.2.1 on it is signed with the Thalzeron Labs demo
+key (used only for these showcase apps, never on Google Play), so new versions install over the previous one.
+Certificate SHA-256:
+`5D:9E:34:67:6F:72:29:18:00:CF:0D:AD:12:B7:66:A0:8A:2E:A4:8A:63:32:BD:ED:54:B9:E1:A4:27:A3:3C:D3`.
+The APK's own SHA-256 is in each release's notes.
 
 ## Requirements
 
@@ -140,7 +148,9 @@ A local release build without the demo-key variables is signed with your debug k
 ## Tests
 
 ```bash
-./gradlew :app:testDebugUnitTest
+./gradlew :app:testDebugUnitTest          # all unit tests
+./gradlew :app:verifyRoborazziDebug       # the same, plus comparing the screens with docs/screenshots/
+./gradlew :app:recordRoborazziDebug       # after an intended UI change: rewrite the screenshots
 ```
 
 Everything runs on the JVM, no device needed:
@@ -151,7 +161,8 @@ Everything runs on the JVM, no device needed:
 | Models | the catalog (official URLs, hashes, sizes, licenses), the model files (layout, import, delete, v0.1.0 migration), the manager (progress, pause, one download at a time, switching without restart, load errors) and the downloader (a fake server that drops connections, ignores `Range`, answers 5xx/404 and serves corrupted bytes, plus a real local HTTP socket) |
 | Settings | defaults and clamping, the settings reaching the engine, the context window trimming |
 | Share and copy | the Markdown export, the share intent, the clipboard, long-press to copy (Compose UI test) |
-| Battery and themes | battery parsing and the low threshold, the 256-token cap, the banner and its Stop button (Compose UI test), WCAG contrast of both themes |
+| Battery and themes | battery parsing and the low threshold, the 256-token cap, the banner and its Stop button (Compose UI test), WCAG contrast of both themes and the text color on every container |
+| Screenshots | nine screens in light and dark, rendered on the JVM with Roborazzi and compared with `docs/screenshots/` in CI |
 
 ## Contributing
 

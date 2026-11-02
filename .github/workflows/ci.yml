@@ -26,8 +26,21 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "ndk;28.2.13676358" "cmake;4.1.2" > /dev/null
 
-      - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest :llama:testDebugUnitTest
+      - name: Unit tests and screenshot check
+        # verifyRoborazziDebug runs every app unit test and compares the screens with docs/screenshots/.
+        # After an intended UI change, run ./gradlew :app:recordRoborazziDebug and commit the new images.
+        run: ./gradlew :app:verifyRoborazziDebug :llama:testDebugUnitTest
+
+      - name: Upload screenshot differences
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-diffs
+          path: |
+            app/build/outputs/roborazzi/
+            docs/screenshots/*_compare.png
+            docs/screenshots/*_actual.png
+          if-no-files-found: ignore
 
       - name: Build the APK
         run: ./gradlew :app:assembleRelease

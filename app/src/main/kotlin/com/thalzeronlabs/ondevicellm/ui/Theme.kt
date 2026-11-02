@@ -31,7 +31,9 @@ internal val DarkColors = darkColorScheme(
     onBackground = Color(0xFFF2F2F7),
     surface = Brand.Black,
     onSurface = Color(0xFFF2F2F7),
-    surfaceVariant = Brand.Graphite2,
+    // Must differ from every surfaceContainer*: contentColorFor() checks surfaceVariant first, and an equal color
+    // would give the drawer and the sheets the secondary text color (ThemeContrastTest guards this).
+    surfaceVariant = Color(0xFF242426),
     onSurfaceVariant = Brand.Muted,
     surfaceContainer = Brand.Graphite2,
     surfaceContainerHigh = Brand.Graphite,
@@ -49,7 +51,7 @@ internal val LightColors = lightColorScheme(
     onSecondaryContainer = Brand.Black,
     background = Color(0xFFF7F7F9),
     surface = Color(0xFFF7F7F9),
-    surfaceVariant = Color(0xFFEDEDF0),
+    surfaceVariant = Color(0xFFE9E9EE),
     onSurfaceVariant = Color(0xFF636366),
     surfaceContainer = Color(0xFFEDEDF0),
     surfaceContainerHigh = Color(0xFFE5E5EA),

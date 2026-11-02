@@ -51,7 +51,8 @@ Changing the database? Bump the version in `ChatDatabase`, add a migration and c
 2. Add or update unit tests for logic changes. Everything is tested on the JVM (fakes, Turbine, and Robolectric for
    Room and Compose UI), so new logic should be too.
 3. Run `./gradlew :app:testDebugUnitTest` before pushing. CI runs the tests and builds the release APK.
-4. For UI changes, add a screenshot or a short recording to the PR.
+4. For UI changes, run `./gradlew :app:recordRoborazziDebug`, commit the updated `docs/screenshots/` and mention
+   them in the PR (CI fails when the screens no longer match).
 5. Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
 
 Code style: the official Kotlin style (`kotlin.code.style=official`), English everywhere (code, comments, commits).
@@ -65,6 +66,8 @@ remote config or any network call besides downloading a model file the user aske
 
 Bump `versionName`/`versionCode` in `app/build.gradle.kts`, move the `Unreleased` notes into a new version in
 `CHANGELOG.md`, merge, then push a tag `vX.Y.Z` (or run the **Release** workflow by hand on `main` with that tag).
-The [release workflow](.github/workflows/release.yml) builds the APK and publishes the GitHub release.
+The [release workflow](.github/workflows/release.yml) builds the APK, signs it with the demo key from the Actions
+secrets (`DEMO_KEYSTORE_BASE64`, `DEMO_KEYSTORE_PASSWORD`, `DEMO_KEY_ALIAS`, `DEMO_KEY_PASSWORD`), checks its
+certificate and publishes the GitHub release.
 
 By contributing you agree that your contribution is licensed under the [Apache-2.0 license](LICENSE).

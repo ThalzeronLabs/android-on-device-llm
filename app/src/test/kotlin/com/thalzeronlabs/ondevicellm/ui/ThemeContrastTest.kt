@@ -1,8 +1,10 @@
 package com.thalzeronlabs.ondevicellm.ui
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.contentColorFor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,6 +39,20 @@ class ThemeContrastTest {
             if (ratio < 4.5) "$pair = %.2f".format(ratio) else null
         }
         assertTrue("$name theme below 4.5:1: $failures", failures.isEmpty())
+    }
+
+    /** Text on the drawer, sheets and cards must get the primary text color, not the secondary one. */
+    private fun checkContentColors(name: String, scheme: ColorScheme) = with(scheme) {
+        listOf(background, surface, surfaceContainer, surfaceContainerHigh, surfaceContainerHighest).forEach { container ->
+            val content = contentColorFor(container)
+            assertNotEquals("$name: secondary text color on $container", onSurfaceVariant, content)
+            assertTrue("$name: weak text on $container", contrast(content, container) >= 7.0)
+        }
+    }
+
+    @Test fun `containers get the primary text color in both themes`() {
+        checkContentColors("dark", DarkColors)
+        checkContentColors("light", LightColors)
     }
 
     @Test fun `dark theme is readable`() = check("dark", DarkColors)
