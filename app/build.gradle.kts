@@ -42,6 +42,15 @@ android {
             // Phones only: every 64-bit ARM phone, and a smaller download. Debug builds keep x86_64 for emulators.
             ndk { abiFilters += "arm64-v8a" }
         }
+        // A release build (minified, same native code) that installs next to the published app, so it can be
+        // measured on a phone without uninstalling the release and its downloaded models.
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
     compileOptions {

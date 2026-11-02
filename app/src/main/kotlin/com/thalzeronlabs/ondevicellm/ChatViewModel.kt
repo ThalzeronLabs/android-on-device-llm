@@ -20,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,12 +60,17 @@ data class ChatUiState(
     }
 }
 
+/** How often a streaming answer reaches the screen: ~30 times a second reads as continuous text. */
+private const val STREAM_FRAME_MILLIS = 33L
+
 class ChatViewModel(
     private val repository: ConversationRepository,
     private val modelManager: ModelManager,
     private val engine: ChatEngine,
     battery: Flow<BatteryStatus> = emptyFlow(),
     private val contextTokens: Int = LlamaChatEngine.CONTEXT_TOKENS,
+    /** Milliseconds from a monotonic clock, for the live speed. */
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -95,7 +101,7 @@ class ChatViewModel(
         if (prompt.isEmpty() || current.generating || models.value.engine !is EngineState.Ready) return
 
         val turns = current.messages + UiMessage(true, prompt)
-        _state.update { it.copy(messages = turns + UiMessage(false, ""), generating = true) }
+        _state.update { it.copy(messages = turns + UiMessage(false, ""), generating = true, tokensPerSecond = null) }
         val settings = current.settings
         val maxTokens = current.effectiveMaxTokens
         work = viewModelScope.launch {
@@ -107,9 +113,33 @@ class ChatViewModel(
                 }
                 repository.addMessage(conversationId, fromUser = true, text = prompt)
                 val history = HistoryWindow.build(settings.systemPrompt, turns, maxTokens, contextTokens)
-                engine.reply(history, GenerationOptions(settings.temperature, maxTokens)).collect { piece ->
-                    generated.append(piece)
-                    appendToAnswer(piece)
+                // The model can outrun the screen: hand the text to the UI once per frame, not once per token, so
+                // recomposition does not compete with the model for the CPU.
+                val pending = StringBuilder()
+                var pieces = 0
+                var firstAt = 0L
+                fun flush() {
+                    if (pending.isEmpty()) return
+                    val text = pending.toString()
+                    pending.setLength(0)
+                    val elapsed = clock() - firstAt
+                    appendToAnswer(text, if (pieces > 1 && elapsed > 0) (pieces - 1) * 1000.0 / elapsed else null)
+                }
+                val frames = launch {
+                    while (true) {
+                        delay(STREAM_FRAME_MILLIS)
+                        flush()
+                    }
+                }
+                try {
+                    engine.reply(history, GenerationOptions(settings.temperature, maxTokens)).collect { piece ->
+                        if (pieces++ == 0) firstAt = clock()
+                        generated.append(piece)
+                        pending.append(piece)
+                    }
+                } finally {
+                    frames.cancel()
+                    flush()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -145,10 +175,14 @@ class ChatViewModel(
         if (_state.value.generating) work?.cancel()
     }
 
-    private fun appendToAnswer(piece: String) {
+    /** Adds [piece] to the answer being written; [liveTokensPerSecond], when known, replaces the speed shown. */
+    private fun appendToAnswer(piece: String, liveTokensPerSecond: Double? = null) {
         _state.update { s ->
             val last = s.messages.last()
-            s.copy(messages = s.messages.dropLast(1) + last.copy(text = last.text + piece))
+            s.copy(
+                messages = s.messages.dropLast(1) + last.copy(text = last.text + piece),
+                tokensPerSecond = liveTokensPerSecond ?: s.tokensPerSecond,
+            )
         }
     }
 
