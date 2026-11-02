@@ -13,8 +13,8 @@ android {
         applicationId = "com.thalzeronlabs.ondevicellm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.2.2"
     }
 
     // Release APKs on GitHub are signed with the Thalzeron Labs demo key (showcase apps only, never Google Play),

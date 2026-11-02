@@ -4,11 +4,7 @@ import com.thalzeronlabs.llama.ChatMessage
 import com.thalzeronlabs.llama.LlamaModel
 import com.thalzeronlabs.llama.LlamaSession
 import com.thalzeronlabs.llama.SessionParams
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import java.io.File
 
 /** Sampling settings for one answer. */
@@ -26,7 +22,7 @@ interface ChatEngine {
 
 /** The real engine: llama.cpp running on the phone's CPU through llama-kotlin. */
 class LlamaChatEngine(
-    private val baseParams: SessionParams = SessionParams(contextSize = CONTEXT_TOKENS),
+    private val params: SessionParams = SessionParams(contextSize = CONTEXT_TOKENS),
 ) : ChatEngine {
 
     private var model: LlamaModel? = null
@@ -34,41 +30,27 @@ class LlamaChatEngine(
 
     override suspend fun load(file: File) {
         close()
-        model = LlamaModel.load(file)
+        val loaded = LlamaModel.load(file)
+        model = loaded
+        session = loaded.newSession(params)
     }
-
-    override fun reply(history: List<ChatMessage>, options: GenerationOptions): Flow<String> = flow {
-        emitAll(sessionFor(options.temperature).chat(history, maxTokens = options.maxTokens))
-    }.flowOn(Dispatchers.Default)
 
     /**
-     * Temperature is fixed when a llama-kotlin session is created, so a conversation with another temperature
-     * gets a fresh session. [LlamaSession.chat] re-sends the whole history anyway, so nothing is lost.
+     * One session per model: the temperature is passed per answer, so a conversation with its own temperature
+     * keeps the session and its KV cache (only the new part of the conversation is processed).
      */
-    @Synchronized
-    private fun sessionFor(temperature: Float): LlamaSession {
-        val loaded = checkNotNull(model) { "Load a model first." }
-        session?.let { current ->
-            if (currentTemperature == temperature) return current
-            current.close()
-        }
-        return loaded.newSession(baseParams.copy(temperature = temperature)).also {
-            session = it
-            currentTemperature = temperature
-        }
+    override fun reply(history: List<ChatMessage>, options: GenerationOptions): Flow<String> {
+        val current = checkNotNull(session) { "Load a model first." }
+        return current.chat(history, maxTokens = options.maxTokens, temperature = options.temperature)
     }
-
-    private var currentTemperature: Float? = null
 
     override val lastTokensPerSecond: Double?
         get() = session?.lastStats?.tokensPerSecond
 
-    @Synchronized
     override fun close() {
         model?.close() // also closes the session
         model = null
         session = null
-        currentTemperature = null
     }
 
     companion object {

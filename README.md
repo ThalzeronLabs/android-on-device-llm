@@ -119,14 +119,15 @@ RoomConversationRepository      catalog · download · switch · import      Lla
 
 All the native work (loading the GGUF, the chat template, sampling, streaming tokens) is done by
 [**llama-kotlin**](https://github.com/ThalzeronLabs/llama-kotlin), a small coroutine-first Kotlin API over
-llama.cpp, included here as a git submodule. The whole engine of this app is about 50 lines
+llama.cpp, included here as a git submodule. The whole engine of this app is about 40 lines
 ([`ChatEngine.kt`](app/src/main/kotlin/com/thalzeronlabs/ondevicellm/data/ChatEngine.kt)):
 
 ```kotlin
 val model = LlamaModel.load(file)                                  // on Dispatchers.IO; switching models = load another
-val session = model.newSession(SessionParams(contextSize = 4096, temperature = settings.temperature))
+val session = model.newSession(SessionParams(contextSize = 4096))
 
-session.chat(history, maxTokens = settings.maxTokens)              // Flow<String>, token by token
+session.chat(history, maxTokens = settings.maxTokens,              // Flow<String>, token by token
+    temperature = settings.temperature)                            // per answer: the KV cache is kept
     .collect { piece -> appendToAnswer(piece) }                    // cancel the coroutine = Stop
 
 session.lastStats?.tokensPerSecond                                 // the tok/s chip

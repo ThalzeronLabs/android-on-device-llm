@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-02
+
+### Changed
+
+- Updated [llama-kotlin](https://github.com/ThalzeronLabs/llama-kotlin) to v0.2.1. The temperature of each
+  conversation is now passed with every answer instead of opening a new session when it changes, so the model's
+  KV cache is kept and only the new part of a conversation is processed before answering.
+
 ## [0.2.1] - 2026-11-02
 
 **From v0.2.1 on, updates install over the previous version; v0.2.0 users must uninstall once.**
@@ -76,7 +84,8 @@ First public release.
   the workflow and attaches it, with its SHA-256, to a GitHub release.
 - Unit tests for the downloader (fake server and a real local HTTP socket), the model source and the ViewModel.
 
-[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ThalzeronLabs/android-on-device-llm/releases/tag/v0.1.0
