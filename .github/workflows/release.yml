@@ -113,10 +113,11 @@ jobs:
             echo
             echo "1. Download **on-device-llm-$TAG-arm64-v8a.apk** below (${size_mb} MB) on an Android 8+ phone (arm64)."
             echo "2. Open it and allow \"Install unknown apps\" for your browser or file manager when asked."
-            echo "3. Open **On-device LLM**. On Wi-Fi the model (Qwen2.5-0.5B-Instruct Q4_K_M, ~491 MB) downloads by itself"
-            echo "   from Hugging Face, is checked against its SHA-256, and then everything runs offline."
+            echo "3. Open **On-device LLM**. On Wi-Fi the default model (Qwen2.5-0.5B-Instruct Q4_K_M, ~491 MB) downloads by"
+            echo "   itself from Hugging Face, is checked against its SHA-256, and then everything runs offline. Other models"
+            echo "   can be picked from the model list in the app."
             echo
-            echo "Needs about 1 GB free. Nothing you type leaves the phone."
+            echo "Needs about 1 GB free for the default model. Nothing you type leaves the phone."
             echo
             echo "## What's new"
             echo
