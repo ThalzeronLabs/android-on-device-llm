@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Answers are several times faster.** Tested on a POCO X6 Pro (Dimensity 8300) with Qwen2.5 0.5B: 8.7 tok/s in
+  v0.2.3. Android ran the model's threads on the phone's slow cores; the updated llama-kotlin keeps them on a
+  persistent thread pool pinned to the fast cores (23.1 tok/s from that alone), and the app now draws the answer
+  once per frame instead of once per token, so the screen no longer competes with the model for the CPU.
+- **No more crash on phones without dot-product instructions** (Cortex-A53/A73 phones, and x86_64 emulators running
+  the arm64 build): the app closed on the first answer with SIGILL. The right CPU code is now picked at start-up.
+- The speed badge showed the previous answer's speed while a new one was being written; it now shows the live speed.
+- The battery banner said answers use "every CPU core"; they use the fastest cores.
+
+### Changed
+
+- The orb only moves while waiting for an answer to start, and never with "Remove animations" on. An idle screen
+  draws nothing, which also saves battery and lets UI test tools see the screen settle.
+- New `staging` build type: a release build that installs next to the published app, for measuring on a phone.
+
+### Known issue
+
+- Updating from v0.1.0 needs an uninstall first (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`): v0.1.0 was signed with a
+  one-off key. From v0.2.1 on, every release is signed with the same demo key and updates in place.
+
 ## [0.2.3] - 2026-11-02
 
 ### Changed
