@@ -20,7 +20,7 @@ data class BatteryStatus(
     /** Android's own Battery Saver is on. */
     val powerSaveMode: Boolean = false,
 ) {
-    /** Low enough that a long answer (which keeps every CPU core busy) is worth a warning. */
+    /** Low enough that a long answer (which keeps the fastest CPU cores busy) is worth a warning. */
     val isLow: Boolean get() = powerSaveMode || (!charging && percent in 0..LOW_PERCENT)
 
     companion object {

@@ -320,7 +320,7 @@ fun BatteryBanner(battery: BatteryStatus?, generating: Boolean, onStop: () -> Un
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
             Text(
-                "Answers use every CPU core, so they are kept short (${ChatUiState.SAVER_MAX_TOKENS} tokens).",
+                "Answers run on the fastest CPU cores, so they are kept short (${ChatUiState.SAVER_MAX_TOKENS} tokens).",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )

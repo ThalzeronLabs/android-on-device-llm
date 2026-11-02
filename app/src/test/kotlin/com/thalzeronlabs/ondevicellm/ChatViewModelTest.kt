@@ -136,6 +136,37 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `a burst of tokens reaches the screen in a few frames, not one update per token`() = runTest(dispatcher) {
+        val vm = viewModel(FakeEngine(answer = { flow { repeat(200) { emit("x") } } }))
+        vm.state.test {
+            vm.send("go")
+            val shown = mutableListOf<String>()
+            while (true) {
+                val s = awaitItem()
+                if (s.generating && s.messages.size == 2) shown += s.messages.last().text
+                if (!s.generating) {
+                    assertEquals("x".repeat(200), s.messages.last().text)
+                    break
+                }
+            }
+            assertTrue("the answer was redrawn ${shown.distinct().size} times", shown.distinct().size <= 3)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a new answer clears the speed of the previous one`() = runTest(dispatcher) {
+        val vm = viewModel()
+        vm.state.test {
+            vm.send("first")
+            assertEquals(12.5, awaitUntil { !it.generating && it.tokensPerSecond != null }.tokensPerSecond!!, 1e-9)
+            vm.send("second")
+            assertNull(awaitUntil { it.generating }.tokensPerSecond)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `an engine error is shown but not saved`() = runTest(dispatcher) {
         val vm = viewModel(FakeEngine(answer = { flow { emit("Half"); error("context full") } }))
         vm.send("go"); advanceUntilIdle()

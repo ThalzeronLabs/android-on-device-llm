@@ -113,11 +113,13 @@ class ChatViewModel(
                 }
                 repository.addMessage(conversationId, fromUser = true, text = prompt)
                 val history = HistoryWindow.build(settings.systemPrompt, turns, maxTokens, contextTokens)
-                // The model can outrun the screen: hand the text to the UI once per frame, not once per token, so
-                // recomposition does not compete with the model for the CPU.
+                // The model can outrun the screen: the first piece shows at once, the rest reach the UI at most once
+                // per frame instead of once per token, so recomposition does not compete with the model for the CPU.
+                // A frame is scheduled only when text is waiting, so nothing ticks while the model is silent.
                 val pending = StringBuilder()
                 var pieces = 0
                 var firstAt = 0L
+                var frame: Job? = null
                 fun flush() {
                     if (pending.isEmpty()) return
                     val text = pending.toString()
@@ -125,20 +127,22 @@ class ChatViewModel(
                     val elapsed = clock() - firstAt
                     appendToAnswer(text, if (pieces > 1 && elapsed > 0) (pieces - 1) * 1000.0 / elapsed else null)
                 }
-                val frames = launch {
-                    while (true) {
-                        delay(STREAM_FRAME_MILLIS)
-                        flush()
-                    }
-                }
                 try {
                     engine.reply(history, GenerationOptions(settings.temperature, maxTokens)).collect { piece ->
-                        if (pieces++ == 0) firstAt = clock()
                         generated.append(piece)
                         pending.append(piece)
+                        if (pieces++ == 0) {
+                            firstAt = clock()
+                            flush()
+                        } else if (frame?.isActive != true) {
+                            frame = launch {
+                                delay(STREAM_FRAME_MILLIS)
+                                flush()
+                            }
+                        }
                     }
                 } finally {
-                    frames.cancel()
+                    frame?.cancel()
                     flush()
                 }
             } catch (e: CancellationException) {
