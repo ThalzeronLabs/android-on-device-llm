@@ -3,10 +3,11 @@
 
     <!-- Only used to download the model once; chatting never touches the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Only to check for Wi-Fi before starting the ~491 MB download by itself. -->
+    <!-- Only to check for Wi-Fi before starting the default model download by itself. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".OnDeviceLlmApp"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:largeHeap="true"

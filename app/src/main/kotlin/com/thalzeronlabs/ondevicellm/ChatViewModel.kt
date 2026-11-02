@@ -2,172 +2,147 @@ package com.thalzeronlabs.ondevicellm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.thalzeronlabs.llama.ChatMessage
+import com.thalzeronlabs.ondevicellm.battery.BatteryStatus
+import com.thalzeronlabs.ondevicellm.chat.ChatSettings
+import com.thalzeronlabs.ondevicellm.chat.ConversationSummary
+import com.thalzeronlabs.ondevicellm.chat.ConversationTitles
+import com.thalzeronlabs.ondevicellm.chat.HistoryWindow
+import com.thalzeronlabs.ondevicellm.chat.MarkdownExport
+import com.thalzeronlabs.ondevicellm.chat.UiMessage
 import com.thalzeronlabs.ondevicellm.data.ChatEngine
-import com.thalzeronlabs.ondevicellm.data.DownloadProgress
-import com.thalzeronlabs.ondevicellm.data.ModelSource
+import com.thalzeronlabs.ondevicellm.data.ConversationRepository
+import com.thalzeronlabs.ondevicellm.data.EngineState
+import com.thalzeronlabs.ondevicellm.data.GenerationOptions
+import com.thalzeronlabs.ondevicellm.data.LlamaChatEngine
+import com.thalzeronlabs.ondevicellm.data.ModelManager
+import com.thalzeronlabs.ondevicellm.data.ModelsState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.InputStream
 
-sealed interface ModelState {
-    data object Missing : ModelState
-    data class Downloading(val progress: Float, val bytes: Long = 0, val total: Long = 0, val resumed: Boolean = false) :
-        ModelState
-    /** An unfinished download is on disk; [download] continues it. */
-    data class Paused(val bytes: Long, val total: Long) : ModelState
-    /** The file is downloaded and its SHA-256 is being checked. */
-    data class Verifying(val progress: Float) : ModelState
-    data object Loading : ModelState
-    data object Ready : ModelState
-    data class Failed(val message: String) : ModelState
-}
-
-data class UiMessage(val fromUser: Boolean, val text: String)
-
 data class ChatUiState(
-    val model: ModelState = ModelState.Missing,
-    val modelName: String = "",
-    val modelSizeMb: Long = 0,
+    /** The open conversation, or null for a new one that is saved on its first message. */
+    val conversationId: Long? = null,
     val messages: List<UiMessage> = emptyList(),
+    val settings: ChatSettings = ChatSettings(),
     val generating: Boolean = false,
     val tokensPerSecond: Double? = null,
-)
+    val conversations: List<ConversationSummary> = emptyList(),
+    val battery: BatteryStatus? = null,
+    /** The user turned the battery saver off until the battery recovers. */
+    val batterySaverDismissed: Boolean = false,
+) {
+    val title: String
+        get() = conversations.firstOrNull { it.id == conversationId }?.title ?: ConversationTitles.NEW_CHAT
+
+    /** Low battery (or Android's Battery Saver): warn, offer Stop and keep answers short. */
+    val batterySaver: Boolean get() = battery?.isLow == true && !batterySaverDismissed
+
+    /** The answer length actually used: capped while the battery saver is on. */
+    val effectiveMaxTokens: Int
+        get() = if (batterySaver) minOf(settings.maxTokens, SAVER_MAX_TOKENS) else settings.maxTokens
+
+    companion object {
+        const val SAVER_MAX_TOKENS = 256
+    }
+}
 
 class ChatViewModel(
+    private val repository: ConversationRepository,
+    private val modelManager: ModelManager,
     private val engine: ChatEngine,
-    private val source: ModelSource,
-    private val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
-    /** Start (or resume) the model download right away when it is missing, e.g. when on Wi-Fi. */
-    autoDownload: Boolean = false,
+    battery: Flow<BatteryStatus> = emptyFlow(),
+    private val contextTokens: Int = LlamaChatEngine.CONTEXT_TOKENS,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        ChatUiState(modelName = source.displayName, modelSizeMb = source.approximateBytes / 1_000_000)
-    )
+    private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
+
+    /** The model catalog and the loaded model. */
+    val models: StateFlow<ModelsState> = modelManager.state
 
     private var work: Job? = null
 
     init {
-        when {
-            source.isReady() -> loadModel()
-            autoDownload -> download()
-            source.partialBytes() > 0 -> setModel(ModelState.Paused(source.partialBytes(), source.approximateBytes))
-        }
-    }
-
-    /** Downloads the default model, continuing an unfinished download if there is one. */
-    fun download() {
-        if (work?.isActive == true) return
-        work = viewModelScope.launch {
-            try {
-                source.download().collect { p ->
-                    setModel(
-                        when (p) {
-                            is DownloadProgress.Transferring ->
-                                ModelState.Downloading(p.fraction, p.bytes, p.total, resumed = p.resumedFrom > 0)
-                            is DownloadProgress.Verifying -> ModelState.Verifying(p.fraction)
-                        }
-                    )
-                }
-                loadModelNow()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setModel(ModelState.Failed("Download failed: ${e.message}"))
+        repository.observeConversations()
+            .onEach { list -> _state.update { it.copy(conversations = list) } }
+            .launchIn(viewModelScope)
+        battery
+            .onEach { status ->
+                // Dismissing lasts until the battery is fine again; the next low battery warns again.
+                _state.update { it.copy(battery = status, batterySaverDismissed = it.batterySaverDismissed && status.isLow) }
             }
-        }
+            .launchIn(viewModelScope)
     }
 
-    /** Stops the download; the bytes already received are kept for [download] to continue from. */
-    fun pauseDownload() {
-        if (_state.value.model !is ModelState.Downloading) return
-        work?.cancel()
-        setModel(ModelState.Paused(source.partialBytes(), source.approximateBytes))
-    }
-
-    fun import(input: InputStream, name: String? = null) {
-        if (work?.isActive == true) return
-        work = viewModelScope.launch {
-            try {
-                setModel(ModelState.Loading)
-                source.import(input, name)
-                loadModelNow()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                setModel(ModelState.Failed(e.message ?: "Could not import the file."))
-            }
-        }
-    }
+    // region Chat
 
     fun send(text: String) {
         val prompt = text.trim()
-        if (prompt.isEmpty() || _state.value.generating || _state.value.model != ModelState.Ready) return
+        val current = _state.value
+        if (prompt.isEmpty() || current.generating || models.value.engine !is EngineState.Ready) return
 
-        _state.update {
-            it.copy(
-                messages = it.messages + UiMessage(true, prompt) + UiMessage(false, ""),
-                generating = true,
-            )
-        }
-        val history = buildHistory()
+        val turns = current.messages + UiMessage(true, prompt)
+        _state.update { it.copy(messages = turns + UiMessage(false, ""), generating = true) }
+        val settings = current.settings
+        val maxTokens = current.effectiveMaxTokens
         work = viewModelScope.launch {
+            var conversationId: Long? = null
+            val generated = StringBuilder()
             try {
-                engine.reply(history).collect { piece -> appendToAnswer(piece) }
+                conversationId = current.conversationId ?: repository.create(settings).also { id ->
+                    _state.update { it.copy(conversationId = id) }
+                }
+                repository.addMessage(conversationId, fromUser = true, text = prompt)
+                val history = HistoryWindow.build(settings.systemPrompt, turns, maxTokens, contextTokens)
+                engine.reply(history, GenerationOptions(settings.temperature, maxTokens)).collect { piece ->
+                    generated.append(piece)
+                    appendToAnswer(piece)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 appendToAnswer("\n[error: ${e.message}]")
             } finally {
-                _state.update { it.copy(generating = false, tokensPerSecond = engine.lastTokensPerSecond) }
+                // Stop keeps what was written: store it even though this coroutine is being cancelled.
+                // An error note is shown but not stored.
+                withContext(NonCancellable) {
+                    val answer = generated.toString()
+                    val shown = _state.value.messages.last().text
+                    val id = conversationId
+                    val storedId = if (id != null && answer.isNotBlank()) {
+                        runCatching { repository.addMessage(id, fromUser = false, text = answer) }.getOrDefault(0)
+                    } else {
+                        0
+                    }
+                    _state.update { s ->
+                        val last = s.messages.last()
+                        s.copy(
+                            messages = if (shown.isBlank()) s.messages.dropLast(1) else s.messages.dropLast(1) + last.copy(id = storedId),
+                            generating = false,
+                            tokensPerSecond = engine.lastTokensPerSecond,
+                        )
+                    }
+                }
             }
         }
     }
 
-    /** Stops the answer being written; what was already generated stays on screen. */
+    /** Stops the answer being written; what was already generated stays on screen and is saved. */
     fun stop() {
         if (_state.value.generating) work?.cancel()
-    }
-
-    fun clear() {
-        stop()
-        _state.update { it.copy(messages = emptyList(), tokensPerSecond = null) }
-    }
-
-    private fun loadModel() {
-        work = viewModelScope.launch { loadModelNow() }
-    }
-
-    private suspend fun loadModelNow() {
-        setModel(ModelState.Loading)
-        try {
-            engine.load(source.modelFile)
-            _state.update {
-                it.copy(
-                    model = ModelState.Ready,
-                    modelName = source.displayName,
-                    modelSizeMb = source.modelFile.length() / 1_000_000,
-                )
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            setModel(ModelState.Failed("Could not load the model: ${e.message}"))
-        }
-    }
-
-    private fun buildHistory(): List<ChatMessage> {
-        val turns = _state.value.messages.dropLast(1) // the empty answer placeholder
-        return listOf(ChatMessage.system(systemPrompt)) + turns.map {
-            if (it.fromUser) ChatMessage.user(it.text) else ChatMessage.assistant(it.text)
-        }
     }
 
     private fun appendToAnswer(piece: String) {
@@ -177,14 +152,88 @@ class ChatViewModel(
         }
     }
 
-    private fun setModel(model: ModelState) = _state.update { it.copy(model = model) }
-
-    override fun onCleared() {
-        engine.close()
+    /** The open conversation as a Markdown document. */
+    fun exportMarkdown(now: Long = System.currentTimeMillis()): String {
+        val s = _state.value
+        return MarkdownExport.render(s.title, s.messages, (models.value.engine as? EngineState.Ready)?.name, now)
     }
 
-    companion object {
-        const val DEFAULT_SYSTEM_PROMPT =
-            "You are a helpful assistant running entirely on the user's phone, without internet. Be concise."
+    // endregion
+
+    // region History
+
+    /** Starts an empty conversation with the default settings. It is saved when the first message is sent. */
+    fun newChat() = afterGeneration {
+        _state.update {
+            it.copy(conversationId = null, messages = emptyList(), settings = ChatSettings(), tokensPerSecond = null)
+        }
+    }
+
+    /** Opens a saved conversation to read it or carry on. */
+    fun openConversation(id: Long) = afterGeneration {
+        val conversation = repository.conversation(id) ?: return@afterGeneration
+        val messages = repository.messages(id)
+        _state.update {
+            it.copy(conversationId = id, messages = messages, settings = conversation.settings, tokensPerSecond = null)
+        }
+    }
+
+    fun rename(id: Long, title: String) {
+        viewModelScope.launch { repository.rename(id, title) }
+    }
+
+    fun delete(id: Long) {
+        if (id == _state.value.conversationId) {
+            afterGeneration {
+                repository.delete(id)
+                _state.update {
+                    it.copy(conversationId = null, messages = emptyList(), settings = ChatSettings(), tokensPerSecond = null)
+                }
+            }
+        } else {
+            viewModelScope.launch { repository.delete(id) }
+        }
+    }
+
+    // endregion
+
+    // region Settings
+
+    /** Changes the open conversation's settings; a new conversation keeps them when it is saved. */
+    fun updateSettings(settings: ChatSettings) {
+        val clean = settings.sanitized()
+        _state.update { it.copy(settings = clean) }
+        val id = _state.value.conversationId ?: return
+        viewModelScope.launch { repository.updateSettings(id, clean) }
+    }
+
+    fun resetSettings() = updateSettings(ChatSettings())
+
+    /** Turns the battery saver off until the battery is no longer low. */
+    fun dismissBatterySaver() = _state.update { it.copy(batterySaverDismissed = true) }
+
+    // endregion
+
+    // region Models
+
+    /** Switches the model without restarting the app; a running answer is stopped first. */
+    fun selectModel(id: String) = afterGeneration { modelManager.select(id) }
+
+    fun downloadModel(id: String) = modelManager.download(id)
+
+    fun pauseDownload(id: String) = modelManager.pause(id)
+
+    fun deleteModel(id: String) = afterGeneration { modelManager.delete(id) }
+
+    fun importModel(input: InputStream, name: String?) = afterGeneration { modelManager.import(input, name) }
+
+    // endregion
+
+    /** Stops a running answer, waits until it is saved, then runs [block]. */
+    private fun afterGeneration(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            work?.cancelAndJoin()
+            block()
+        }
     }
 }

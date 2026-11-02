@@ -14,11 +14,12 @@ object Brand {
     val Black = Color(0xFF121212)
     val Graphite = Color(0xFF2C2C2E)
     val Graphite2 = Color(0xFF1C1C1E)
-    val Muted = Color(0xFF8E8E93)
+    val Muted = Color(0xFF98989D)
     val Green = Color(0xFF34C759)
 }
 
-private val Dark = darkColorScheme(
+/** Every text/background pair used by the UI meets WCAG AA (4.5:1), checked by ThemeContrastTest. */
+internal val DarkColors = darkColorScheme(
     primary = Brand.Yellow,
     onPrimary = Brand.Black,
     primaryContainer = Brand.Yellow,
@@ -34,11 +35,12 @@ private val Dark = darkColorScheme(
     onSurfaceVariant = Brand.Muted,
     surfaceContainer = Brand.Graphite2,
     surfaceContainerHigh = Brand.Graphite,
+    surfaceContainerHighest = Color(0xFF3A3A3C),
     outline = Color(0xFF3A3A3C),
-    error = Color(0xFFFF453A),
+    error = Color(0xFFFF6961),
 )
 
-private val Light = lightColorScheme(
+internal val LightColors = lightColorScheme(
     primary = Color(0xFF1C1C1E),
     onPrimary = Brand.Yellow,
     primaryContainer = Brand.Yellow,
@@ -48,13 +50,15 @@ private val Light = lightColorScheme(
     background = Color(0xFFF7F7F9),
     surface = Color(0xFFF7F7F9),
     surfaceVariant = Color(0xFFEDEDF0),
-    onSurfaceVariant = Color(0xFF6C6C70),
+    onSurfaceVariant = Color(0xFF636366),
     surfaceContainer = Color(0xFFEDEDF0),
     surfaceContainerHigh = Color(0xFFE5E5EA),
+    surfaceContainerHighest = Color(0xFFD1D1D6),
     outline = Color(0xFFD1D1D6),
+    error = Color(0xFFB3261E),
 )
 
 @Composable
 fun OnDeviceLlmTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, content = content)
 }

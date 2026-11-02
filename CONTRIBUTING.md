@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking the time! This is a small, readable codebase on purpose: one screen, one ViewModel, two
+Thanks for taking the time! This is a small, readable codebase on purpose: one screen, one ViewModel, a few
 interfaces. Contributions of any size are welcome, from a typo to a new feature.
 
 ## Where to start
@@ -27,18 +27,29 @@ first sync). Forgot `--recursive`? Run `git submodule update --init --recursive`
 
 | Path | What it does |
 |---|---|
-| `app/src/main/kotlin/.../ChatViewModel.kt` | All screen state (`ChatUiState`) and logic. |
+| `app/src/main/kotlin/.../ChatViewModel.kt` | Chat, history, settings and battery state (`ChatUiState`) and logic. |
+| `app/src/main/kotlin/.../chat/` | Plain Kotlin: settings, titles, context-window trimming, Markdown export. |
 | `app/src/main/kotlin/.../ui/` | Compose UI and the Thalzeron theme (`#FFD600` on `#121212`). |
 | `app/src/main/kotlin/.../data/ChatEngine.kt` | The model engine, behind an interface; the real one uses llama-kotlin. |
+| `app/src/main/kotlin/.../data/ModelCatalog.kt` | The downloadable models, pinned by size and SHA-256. |
+| `app/src/main/kotlin/.../data/ModelManager.kt` | Downloads, deletes, imports and switches models (app-wide). |
+| `app/src/main/kotlin/.../data/ModelStore.kt` | Where the model files live. |
 | `app/src/main/kotlin/.../data/ModelDownloader.kt` | Resumable, verified download of a pinned model file. |
-| `app/src/main/kotlin/.../data/ModelSource.kt` | Where the model lives; download or import. |
+| `app/src/main/kotlin/.../data/ConversationRepository.kt`, `data/db/` | Saved conversations (Room). Schema in `app/schemas/`. |
+| `app/src/main/kotlin/.../battery/` | Battery level and Battery Saver as a `Flow`. |
 | `third_party/llama-kotlin` | The inference library (git submodule). Changes to it go to [its own repo](https://github.com/ThalzeronLabs/llama-kotlin). |
+
+Adding a model to the catalog? Use the size and SHA-256 that Hugging Face publishes for the file (the LFS object id,
+also sent as `X-Linked-ETag` by its `resolve` URL), and only models whose license allows redistribution-free download
+without a login.
+
+Changing the database? Bump the version in `ChatDatabase`, add a migration and commit the new schema JSON.
 
 ## Pull requests
 
 1. Branch from `main`, keep the change focused on one thing.
-2. Add or update unit tests for logic changes. The ViewModel and the downloader are tested with fakes on the JVM, so
-   new logic should be too.
+2. Add or update unit tests for logic changes. Everything is tested on the JVM (fakes, Turbine, and Robolectric for
+   Room and Compose UI), so new logic should be too.
 3. Run `./gradlew :app:testDebugUnitTest` before pushing. CI runs the tests and builds the release APK.
 4. For UI changes, add a screenshot or a short recording to the PR.
 5. Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).

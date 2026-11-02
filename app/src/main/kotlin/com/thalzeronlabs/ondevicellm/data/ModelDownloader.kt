@@ -22,21 +22,31 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
 
-/** A model file published at a fixed URL, pinned by its exact size and SHA-256. */
+/**
+ * A model file published at a fixed URL, pinned by its exact size and SHA-256.
+ *
+ * The catalog entries in [ModelCatalog] also carry what the user needs to choose: a short description, the license
+ * and the official Hugging Face page.
+ */
 data class ModelSpec(
     val displayName: String,
     val url: String,
     val sizeBytes: Long,
     val sha256: String,
+    /** Stable id, also used to remember the chosen model. */
+    val id: String = url.substringAfterLast('/').removeSuffix(".gguf"),
+    val description: String = "",
+    val license: String = "",
+    val licenseUrl: String = "",
+    /** The official model page on Hugging Face. */
+    val pageUrl: String = "",
 ) {
+    /** File name on disk, the same as the published file. */
+    val fileName: String get() = url.substringAfterLast('/')
+
     companion object {
         /** Qwen2.5-0.5B-Instruct, 4-bit (Q4_K_M), from the official Qwen repository on Hugging Face. */
-        val QWEN_2_5_0_5B_Q4_K_M = ModelSpec(
-            displayName = "Qwen2.5 0.5B Instruct (Q4_K_M)",
-            url = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
-            sizeBytes = 491_400_032L,
-            sha256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
-        )
+        val QWEN_2_5_0_5B_Q4_K_M: ModelSpec get() = ModelCatalog.QWEN_2_5_0_5B
     }
 }
 

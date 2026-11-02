@@ -1,20 +1,22 @@
 package com.thalzeronlabs.ondevicellm.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,47 +36,60 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thalzeronlabs.ondevicellm.ChatUiState
-import com.thalzeronlabs.ondevicellm.ModelState
-import com.thalzeronlabs.ondevicellm.UiMessage
+import com.thalzeronlabs.ondevicellm.battery.BatteryStatus
+import com.thalzeronlabs.ondevicellm.chat.ChatSettings
+import com.thalzeronlabs.ondevicellm.chat.UiMessage
+import com.thalzeronlabs.ondevicellm.data.EngineState
+import com.thalzeronlabs.ondevicellm.data.ModelItem
+import com.thalzeronlabs.ondevicellm.data.ModelStatus
+import com.thalzeronlabs.ondevicellm.data.ModelsState
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 private val Suggestions = listOf(
@@ -83,30 +98,77 @@ private val Suggestions = listOf(
     "Give me 3 tips to focus better",
 )
 
+/** Everything the screen can ask for. Defaults do nothing, which keeps previews and UI tests short. */
+class ChatActions(
+    val onSend: (String) -> Unit = {},
+    val onStop: () -> Unit = {},
+    val onNewChat: () -> Unit = {},
+    val onOpenConversation: (Long) -> Unit = {},
+    val onRename: (Long, String) -> Unit = { _, _ -> },
+    val onDelete: (Long) -> Unit = {},
+    val onSettings: (ChatSettings) -> Unit = {},
+    val onResetSettings: () -> Unit = {},
+    val onDismissBatterySaver: () -> Unit = {},
+    val onDownloadModel: (String) -> Unit = {},
+    val onPauseDownload: (String) -> Unit = {},
+    val onSelectModel: (String) -> Unit = {},
+    val onDeleteModel: (String) -> Unit = {},
+    val onImportModel: () -> Unit = {},
+    val onShare: () -> Unit = {},
+    val onExport: () -> Unit = {},
+    val onCopy: (String) -> Unit = {},
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(
-    state: ChatUiState,
-    onDownload: () -> Unit,
-    onPauseDownload: () -> Unit,
-    onPickFile: () -> Unit,
-    onSend: (String) -> Unit,
-    onStop: () -> Unit,
-    onClear: () -> Unit,
-) {
+fun ChatScreen(state: ChatUiState, models: ModelsState, actions: ChatActions) {
     var showInfo by remember { mutableStateOf(false) }
+    var showModels by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val ready = models.engine is EngineState.Ready
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-            Header(state, onInfo = { showInfo = true }, onClear = onClear)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                AnimatedContent(
-                    targetState = state.model == ModelState.Ready,
-                    transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(200)) },
-                    label = "screen",
-                ) { ready ->
-                    if (ready) Conversation(state, onSend, onStop)
-                    else ModelSetup(state.model, state.modelName, state.modelSizeMb, onDownload, onPauseDownload, onPickFile)
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            HistoryDrawer(
+                state = state,
+                onNewChat = { actions.onNewChat(); scope.launch { drawer.close() } },
+                onOpen = { actions.onOpenConversation(it); scope.launch { drawer.close() } },
+                onRename = actions.onRename,
+                onDelete = actions.onDelete,
+            )
+        },
+    ) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+                Header(
+                    state = state,
+                    models = models,
+                    onMenu = { scope.launch { drawer.open() } },
+                    onModels = { showModels = true },
+                    onInfo = { showInfo = true },
+                    onSettings = { showSettings = true },
+                    actions = actions,
+                )
+                AnimatedVisibility(
+                    visible = state.batterySaver,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    BatteryBanner(state.battery, state.generating, actions.onStop, actions.onDismissBatterySaver)
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    AnimatedContent(
+                        targetState = ready,
+                        transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(200)) },
+                        label = "screen",
+                    ) { isReady ->
+                        if (isReady) Conversation(state, actions)
+                        else ModelSetup(models, actions)
+                    }
                 }
             }
         }
@@ -117,220 +179,208 @@ fun ChatScreen(
             onDismissRequest = { showInfo = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) { ModelInfo(state, models) }
+    }
+    if (showModels) {
+        ModalBottomSheet(
+            onDismissRequest = { showModels = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ) { ModelsSheet(models, actions) }
+    }
+    if (showSettings) {
+        ModalBottomSheet(
+            onDismissRequest = { showSettings = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ) {
-            ModelInfo(state)
+            SettingsSheet(
+                settings = state.settings,
+                batterySaver = state.batterySaver,
+                onChange = actions.onSettings,
+                onReset = actions.onResetSettings,
+            )
         }
     }
 }
 
 @Composable
-private fun Header(state: ChatUiState, onInfo: () -> Unit, onClear: () -> Unit) {
+private fun Header(
+    state: ChatUiState,
+    models: ModelsState,
+    onMenu: () -> Unit,
+    onModels: () -> Unit,
+    onInfo: () -> Unit,
+    onSettings: () -> Unit,
+    actions: ChatActions,
+) {
+    val engine = models.engine
     Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Orb(size = 34.dp, active = state.generating)
-        Spacer(Modifier.width(12.dp))
+        IconButton(onClick = onMenu) { Icon(AppIcons.Menu, contentDescription = "Conversations") }
+        Orb(size = 30.dp, active = state.generating)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("On-device LLM", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (engine is EngineState.Ready) state.title else "On-device LLM",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onModels).testTag("model-chip"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(Brand.Green))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "100% offline · runs on this phone",
+                    when (engine) {
+                        is EngineState.Ready -> "${engine.name} · offline"
+                        is EngineState.Loading -> "Loading ${engine.name}…"
+                        else -> "100% offline · runs on this phone"
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Icon(
+                    AppIcons.ExpandMore,
+                    contentDescription = "Choose a model",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
-        if (state.model == ModelState.Ready) {
+        if (engine is EngineState.Ready) {
             Pill(
-                text = state.tokensPerSecond?.let { String.format(Locale.US, "%.1f tok/s", it) } ?: "Model info",
+                text = state.tokensPerSecond?.let { String.format(Locale.US, "%.1f tok/s", it) } ?: "Info",
                 onClick = onInfo,
             )
-            if (state.messages.isNotEmpty()) {
-                Spacer(Modifier.width(6.dp))
-                Pill(text = "New", onClick = onClear, filled = false)
-            }
+            OverflowMenu(state, onModels, onSettings, actions)
         }
     }
 }
 
 @Composable
-private fun Pill(text: String, onClick: () -> Unit, filled: Boolean = true) {
-    val shape = RoundedCornerShape(50)
-    Box(
-        Modifier
-            .clip(shape)
-            .then(
-                if (filled) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+private fun OverflowMenu(state: ChatUiState, onModels: () -> Unit, onSettings: () -> Unit, actions: ChatActions) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) { Icon(AppIcons.MoreVert, contentDescription = "More") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val hasMessages = state.messages.isNotEmpty()
+            DropdownMenuItem(text = { Text("New chat") }, onClick = { open = false; actions.onNewChat() })
+            DropdownMenuItem(text = { Text("Chat settings") }, onClick = { open = false; onSettings() })
+            DropdownMenuItem(text = { Text("Models") }, onClick = { open = false; onModels() })
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Share as Markdown") },
+                enabled = hasMessages,
+                onClick = { open = false; actions.onShare() },
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            DropdownMenuItem(
+                text = { Text("Save as .md file") },
+                enabled = hasMessages,
+                onClick = { open = false; actions.onExport() },
+            )
+        }
+    }
+}
+
+/** Shown while the battery is low (or Android's Battery Saver is on). */
+@Composable
+fun BatteryBanner(battery: BatteryStatus?, generating: Boolean, onStop: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
+            .testTag("battery-banner"),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        Icon(
+            AppIcons.BatteryAlert,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(22.dp),
         )
-    }
-}
-
-/** The breathing gradient orb used as the AI's face. Spins and pulses while it is generating. */
-@Composable
-private fun Orb(size: Dp, active: Boolean = false) {
-    val transition = rememberInfiniteTransition(label = "orb")
-    val angle by transition.animateFloat(
-        0f, 360f,
-        infiniteRepeatable(tween(if (active) 1_400 else 9_000, easing = LinearEasing)),
-        label = "angle",
-    )
-    val pulse by transition.animateFloat(
-        0.92f, 1.06f,
-        infiniteRepeatable(tween(if (active) 500 else 2_200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse",
-    )
-    Canvas(Modifier.size(size).scale(pulse).rotate(angle)) {
-        drawCircle(
-            Brush.sweepGradient(listOf(Brand.Yellow, Color(0xFFFF9F0A), Brand.YellowDim, Brand.Yellow)),
-            radius = this.size.minDimension / 2,
-        )
-        drawCircle(
-            Brush.radialGradient(
-                listOf(Color.White.copy(alpha = 0.55f), Color.Transparent),
-                center = Offset(this.size.width * 0.35f, this.size.height * 0.35f),
-                radius = this.size.minDimension * 0.5f,
-            ),
-            radius = this.size.minDimension / 2,
-        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            val level = battery?.percent?.takeIf { it >= 0 }?.let { "Battery at $it%" } ?: "Battery Saver is on"
+            Text(
+                level,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                "Answers use every CPU core, so they are kept short (${ChatUiState.SAVER_MAX_TOKENS} tokens).",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+        if (generating) {
+            TextButton(onClick = onStop) { Text("Stop", fontWeight = FontWeight.Bold) }
+        } else {
+            TextButton(onClick = onDismiss) { Text("Turn off") }
+        }
     }
 }
 
 @Composable
-private fun ModelSetup(
-    model: ModelState,
-    name: String,
-    sizeMb: Long,
-    onDownload: () -> Unit,
-    onPause: () -> Unit,
-    onPickFile: () -> Unit,
-) {
+private fun ModelSetup(models: ModelsState, actions: ChatActions) {
+    val engine = models.engine
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Orb(
-            size = 120.dp,
-            active = model is ModelState.Downloading || model is ModelState.Verifying || model == ModelState.Loading,
-        )
-        Spacer(Modifier.height(28.dp))
+        val busy = engine is EngineState.Loading || models.anyDownloading
+        Spacer(Modifier.height(12.dp))
+        Orb(size = 96.dp, active = busy)
+        Spacer(Modifier.height(20.dp))
         Text(
             "Private AI, on your phone",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
-            "Download a small model once ($name, about $sizeMb MB). After that, every answer is generated " +
-                "on this device. Nothing you type ever leaves it.",
+            "Pick a model and download it once. After that, every answer is generated on this device. " +
+                "Nothing you type ever leaves it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(28.dp))
-        when (model) {
-            is ModelState.Downloading -> {
-                Progress(model.progress)
-                Caption(
-                    (if (model.resumed) "Resuming · " else "") +
-                        "${model.bytes.mb()} of ${model.total.mb()} MB · ${(model.progress * 100).toInt()}%"
-                )
-                Spacer(Modifier.height(20.dp))
-                SecondaryButton("Pause", onPause)
-                Spacer(Modifier.height(10.dp))
-                Caption("If the connection drops, it picks up where it stopped.")
-            }
-            is ModelState.Paused -> {
-                Progress(model.bytes.toFloat() / model.total.coerceAtLeast(1))
-                Caption("Paused at ${model.bytes.mb()} of ${model.total.mb()} MB")
-                Spacer(Modifier.height(20.dp))
-                PrimaryButton("Resume download", onDownload)
-                Spacer(Modifier.height(10.dp))
-                SecondaryButton("I already have a .gguf file", onPickFile)
-            }
-            is ModelState.Verifying -> {
-                Progress(model.progress)
-                Caption("Checking the file's SHA-256…")
-            }
-            ModelState.Loading -> Caption("Loading the model into memory…")
-            else -> {
-                if (model is ModelState.Failed) {
-                    Text(model.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(12.dp))
-                }
-                PrimaryButton(if (model is ModelState.Failed) "Try again" else "Download the model", onDownload)
-                Spacer(Modifier.height(10.dp))
-                SecondaryButton("I already have a .gguf file", onPickFile)
-            }
+        Spacer(Modifier.height(16.dp))
+        when (engine) {
+            is EngineState.Loading -> Caption("Loading ${engine.name} into memory…")
+            is EngineState.Failed -> Text(engine.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            else -> {}
         }
+        Spacer(Modifier.height(8.dp))
+        ModelList(models, actions)
     }
 }
 
 @Composable
-private fun Progress(fraction: Float) {
-    LinearProgressIndicator(
-        progress = { fraction },
-        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    )
-    Spacer(Modifier.height(10.dp))
-}
-
-@Composable
-private fun Caption(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-    )
-}
-
-@Composable
-private fun PrimaryButton(text: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(16.dp),
-    ) { Text(text, fontWeight = FontWeight.SemiBold) }
-}
-
-@Composable
-private fun SecondaryButton(text: String, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(16.dp),
-    ) { Text(text) }
-}
-
-private fun Long.mb(): Long = this / 1_000_000
-
-@Composable
-private fun Conversation(state: ChatUiState, onSend: (String) -> Unit, onStop: () -> Unit) {
+private fun Conversation(state: ChatUiState, actions: ChatActions) {
     var input by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val lastLength = state.messages.lastOrNull()?.text?.length ?: 0
-    LaunchedEffect(state.messages.size, lastLength) {
+    LaunchedEffect(state.conversationId, state.messages.size, lastLength) {
         if (state.messages.isNotEmpty()) listState.scrollToItem(state.messages.lastIndex)
     }
 
     Column(Modifier.fillMaxSize()) {
         if (state.messages.isEmpty()) {
-            EmptyState(Modifier.weight(1f), onSuggestion = onSend)
+            EmptyState(Modifier.weight(1f), onSuggestion = actions.onSend)
         } else {
             LazyColumn(
                 state = listState,
@@ -340,7 +390,7 @@ private fun Conversation(state: ChatUiState, onSend: (String) -> Unit, onStop: (
             ) {
                 itemsIndexed(state.messages) { index, message ->
                     val streaming = state.generating && index == state.messages.lastIndex
-                    if (message.fromUser) UserBubble(message.text) else AssistantBubble(message.text, streaming)
+                    MessageBubble(message, streaming, onCopy = actions.onCopy, modifier = Modifier.testTag("message-$index"))
                 }
             }
         }
@@ -348,8 +398,8 @@ private fun Conversation(state: ChatUiState, onSend: (String) -> Unit, onStop: (
             value = input,
             onValueChange = { input = it },
             generating = state.generating,
-            onSend = { onSend(input); input = "" },
-            onStop = onStop,
+            onSend = { actions.onSend(input); input = "" },
+            onStop = actions.onStop,
         )
     }
 }
@@ -388,35 +438,55 @@ private fun EmptyState(modifier: Modifier, onSuggestion: (String) -> Unit) {
     }
 }
 
+/** One message. A long press copies its text (with a haptic tick). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UserBubble(text: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Box(
-            Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(22.dp, 22.dp, 6.dp, 22.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 16.dp, vertical = 11.dp),
-        ) {
-            Text(text, color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyLarge)
+fun MessageBubble(message: UiMessage, streaming: Boolean, onCopy: (String) -> Unit, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    val copy = Modifier
+        .semantics { contentDescription = if (message.fromUser) "Your message" else "Answer" }
+        .combinedClickable(
+            enabled = message.text.isNotBlank() && !streaming,
+            onClickLabel = null,
+            onLongClickLabel = "Copy",
+            onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onCopy(message.text)
+            },
+            onClick = {},
+        )
+    if (message.fromUser) {
+        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Box(
+                Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(RoundedCornerShape(22.dp, 22.dp, 6.dp, 22.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .then(copy)
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+            ) {
+                Text(message.text, color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyLarge)
+            }
         }
-    }
-}
-
-@Composable
-private fun AssistantBubble(text: String, streaming: Boolean) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = 4.dp)) { Orb(size = 26.dp, active = streaming) }
-        Spacer(Modifier.width(10.dp))
-        Box(
-            Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(6.dp, 22.dp, 22.dp, 22.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(horizontal = 16.dp, vertical = 11.dp),
-        ) {
-            if (text.isEmpty() && streaming) TypingDots()
-            else Text(text + if (streaming) " ▍" else "", style = MaterialTheme.typography.bodyLarge)
+    } else {
+        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Box(Modifier.padding(top = 4.dp)) { Orb(size = 26.dp, active = streaming) }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(RoundedCornerShape(6.dp, 22.dp, 22.dp, 22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .then(copy)
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+            ) {
+                if (message.text.isEmpty() && streaming) TypingDots()
+                else Text(
+                    message.text + if (streaming) " ▍" else "",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
         }
     }
 }
@@ -474,7 +544,10 @@ private fun InputBar(
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable(enabled = enabled) { if (generating) onStop() else onSend() },
+                .clickable(enabled = enabled, onClickLabel = if (generating) "Stop" else "Send") {
+                    if (generating) onStop() else onSend()
+                }
+                .semantics { contentDescription = if (generating) "Stop" else "Send" },
             contentAlignment = Alignment.Center,
         ) {
             val iconColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -497,7 +570,8 @@ private fun InputBar(
 }
 
 @Composable
-private fun ModelInfo(state: ChatUiState) {
+private fun ModelInfo(state: ChatUiState, models: ModelsState) {
+    val ready = models.engine as? EngineState.Ready
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Orb(size = 40.dp)
@@ -508,10 +582,22 @@ private fun ModelInfo(state: ChatUiState) {
             }
         }
         Spacer(Modifier.height(20.dp))
-        InfoRow("Model", state.modelName)
-        InfoRow("Size", "${state.modelSizeMb} MB on disk")
+        InfoRow("Model", ready?.name ?: "None")
+        InfoRow("Size", ready?.sizeBytes?.let { "${it.humanSize()} on disk" } ?: "-")
         InfoRow("Engine", "llama.cpp on the CPU (ARM dot-product)")
-        InfoRow("Speed", state.tokensPerSecond?.let { String.format(Locale.US, "%.1f tokens per second", it) } ?: "Ask something first")
+        InfoRow(
+            "Speed",
+            state.tokensPerSecond?.let { String.format(Locale.US, "%.1f tokens per second", it) } ?: "Ask something first",
+        )
+        InfoRow(
+            "This chat",
+            String.format(
+                Locale.US,
+                "Temperature %.1f · up to %d tokens per answer",
+                state.settings.temperature,
+                state.effectiveMaxTokens,
+            ),
+        )
         InfoRow("Privacy", "No server, no account, no network calls while chatting")
     }
 }
@@ -526,22 +612,44 @@ private fun InfoRow(label: String, value: String) {
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
 }
 
+internal fun previewModels(ready: Boolean = true) = ModelsState(
+    items = listOf(
+        ModelItem("smollm2-360m", "SmolLM2 360M Instruct", 386_404_992, ModelStatus.NotDownloaded, "The fastest.", "Apache-2.0"),
+        ModelItem(
+            "qwen-0.5b", "Qwen2.5 0.5B Instruct", 491_400_032, ModelStatus.Installed, "The default.", "Apache-2.0",
+            pageUrl = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        ),
+        ModelItem(
+            "qwen-1.5b", "Qwen2.5 1.5B Instruct", 1_117_320_736,
+            ModelStatus.Downloading(0.42f, 469_000_000, 1_117_320_736), "The smartest here.", "Apache-2.0",
+        ),
+    ),
+    engine = if (ready) EngineState.Ready("qwen-0.5b", "Qwen2.5 0.5B Instruct", 491_400_032) else EngineState.NoModel,
+)
+
 @Preview
 @Composable
 private fun ChatPreview() {
     OnDeviceLlmTheme(dark = true) {
         ChatScreen(
             state = ChatUiState(
-                model = ModelState.Ready,
-                modelName = "Qwen2.5 0.5B Instruct",
-                modelSizeMb = 491,
                 messages = listOf(
                     UiMessage(true, "What runs this chat?"),
                     UiMessage(false, "A 0.5B-parameter model, quantized to 4 bits, running on your phone's CPU."),
                 ),
                 tokensPerSecond = 18.4,
+                battery = BatteryStatus(14, charging = false),
             ),
-            onDownload = {}, onPauseDownload = {}, onPickFile = {}, onSend = {}, onStop = {}, onClear = {},
+            models = previewModels(),
+            actions = ChatActions(),
         )
+    }
+}
+
+@Preview
+@Composable
+private fun SetupPreviewLight() {
+    OnDeviceLlmTheme(dark = false) {
+        ChatScreen(state = ChatUiState(), models = previewModels(ready = false), actions = ChatActions())
     }
 }
