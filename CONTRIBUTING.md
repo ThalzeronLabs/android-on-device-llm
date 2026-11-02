@@ -43,8 +43,8 @@ Adding a model to the catalog? Use the size and SHA-256 that Hugging Face publis
 also sent as `X-Linked-ETag` by its `resolve` URL), and only models whose license allows redistribution-free download
 without a login.
 
-Updating llama-kotlin? Check out the new tag in `third_party/llama-kotlin`, set `VERSION_NAME` in
-`gradle.properties` to the same version (the module reads it from this build), and add any plugin its build uses to
+Updating llama-kotlin? Check out the new tag in `third_party/llama-kotlin` and commit the submodule. The module only
+needs the Android library plugin, `kotlinx-coroutines-core`, `kotlinx-coroutines-test` and `junit` from
 `gradle/libs.versions.toml`.
 
 Changing the database? Bump the version in `ChatDatabase`, add a migration and commit the new schema JSON.

@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-02
+
+### Changed
+
+- Updated [llama-kotlin](https://github.com/ThalzeronLabs/llama-kotlin) to v0.2.2, which builds as a git submodule
+  without anything extra from the including project: the `VERSION_NAME` property and the Dokka plugin added for
+  v0.2.2 are gone from this build. No change in the app itself.
+
 ## [0.2.2] - 2026-11-02
 
 ### Changed
@@ -84,7 +92,8 @@ First public release.
   the workflow and attaches it, with its SHA-256, to a GitHub release.
 - Unit tests for the downloader (fake server and a real local HTTP socket), the model source and the ViewModel.
 
-[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.1.0...v0.2.0
