@@ -141,10 +141,12 @@ class ChatViewModelTest {
         vm.state.test {
             vm.send("go")
             val shown = mutableListOf<String>()
+            var started = false
             while (true) {
                 val s = awaitItem()
+                if (s.generating) started = true
                 if (s.generating && s.messages.size == 2) shown += s.messages.last().text
-                if (!s.generating) {
+                if (started && !s.generating) {
                     assertEquals("x".repeat(200), s.messages.last().text)
                     break
                 }
