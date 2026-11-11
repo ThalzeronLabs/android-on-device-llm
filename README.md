@@ -165,6 +165,10 @@ Everything runs on the JVM, no device needed:
 | Battery and themes | battery parsing and the low threshold, the 256-token cap, the banner and its Stop button (Compose UI test), WCAG contrast of both themes and the text color on every container |
 | Screenshots | nine screens in light and dark, rendered on the JVM with Roborazzi and compared with `docs/screenshots/` in CI |
 
+## How I build this
+
+I use AI assistance (Claude) while I build this project: for drafting, exploring options and writing tests. I review every change myself, each one lands through a pull request with tests, and CI must pass before anything is merged. I'm responsible for every line.
+
 ## Contributing
 
 Issues labelled [`good first issue`](https://github.com/ThalzeronLabs/android-on-device-llm/labels/good%20first%20issue)
