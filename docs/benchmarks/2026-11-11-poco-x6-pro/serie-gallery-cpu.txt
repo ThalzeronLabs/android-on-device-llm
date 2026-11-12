@@ -1,0 +1,3 @@
+cpu rodada 1 GALLERY | cpu 48.687 C | USB powered: true temperature: 410 | capturas gallery-cpu-r1-a/-b | status=0 f4=1900000 f7=1900000
+cpu rodada 2 GALLERY | cpu 49.204 C | USB powered: true temperature: 418 | capturas gallery-cpu-r2-a/-b | status=0 f4=1900000 f7=1900000
+cpu rodada 3 GALLERY | cpu 48.888 C | USB powered: true temperature: 424 | capturas gallery-cpu-r3-a/-b | status=0 f4=1900000 f7=1900000

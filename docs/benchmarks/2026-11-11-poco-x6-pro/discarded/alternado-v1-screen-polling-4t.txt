@@ -1,0 +1,9 @@
+Warning: Activity not started, its current task has been brought to the front
+rodada 1 NOSSO  | cpu 48.904 C bat 417 | 238 tokens in 7326 ms, 32.5 tok/s; prompt 47 tokens (46 cached) in 81 ms; END_OF_GENERATION
+rodada 1 POCKET | cpu 48.832 C bat 415 | text="32ms/token, 30.81 tokens/sec, 937ms TTFT"
+Warning: Activity not started, its current task has been brought to the front
+rodada 2 NOSSO  | cpu 47.745 C bat 412 | 238 tokens in 7365 ms, 32.3 tok/s; prompt 47 tokens (46 cached) in 140 ms; END_OF_GENERATION
+rodada 2 POCKET | cpu 50.61 C bat 410 | 
+Warning: Activity not started, its current task has been brought to the front
+rodada 3 NOSSO  | cpu 48.889 C bat 405 | 238 tokens in 7122 ms, 33.4 tok/s; prompt 47 tokens (46 cached) in 1612 ms; END_OF_GENERATION
+rodada 3 POCKET | cpu 50.907 C bat 403 | text="34ms/token, 29.83 tokens/sec, 995ms TTFT"

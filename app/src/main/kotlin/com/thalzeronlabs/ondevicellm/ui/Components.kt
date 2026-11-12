@@ -1,5 +1,6 @@
 package com.thalzeronlabs.ondevicellm.ui
 
+import android.provider.Settings
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -25,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -35,27 +37,50 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
-/** The breathing gradient orb used as the AI's face. Spins and pulses while it is working. */
+/**
+ * The gradient orb used as the AI's face. It spins and pulses only while [active] (waiting for an answer to start);
+ * otherwise it is still, so an idle screen draws nothing and a long conversation is not a wall of animations. It
+ * never moves when the user turned animations off.
+ */
 @Composable
 fun Orb(size: Dp, active: Boolean = false) {
+    if (!active || !animationsEnabled()) {
+        OrbFace(Modifier.size(size))
+        return
+    }
     val transition = rememberInfiniteTransition(label = "orb")
     val angle by transition.animateFloat(
         0f, 360f,
-        infiniteRepeatable(tween(if (active) 1_400 else 9_000, easing = LinearEasing)),
+        infiniteRepeatable(tween(1_400, easing = LinearEasing)),
         label = "angle",
     )
     val pulse by transition.animateFloat(
         0.92f, 1.06f,
-        infiniteRepeatable(tween(if (active) 500 else 2_200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        infiniteRepeatable(tween(500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "pulse",
     )
-    Canvas(Modifier.size(size).scale(pulse).rotate(angle)) {
+    OrbFace(Modifier.size(size).scale(pulse).rotate(angle))
+}
+
+/** False when the user set "Remove animations" (animator duration scale 0). */
+@Composable
+private fun animationsEnabled(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember(resolver) {
+        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    }
+}
+
+@Composable
+private fun OrbFace(modifier: Modifier) {
+    Canvas(modifier) {
         drawCircle(
             Brush.sweepGradient(listOf(Brand.Yellow, Color(0xFFFF9F0A), Brand.YellowDim, Brand.Yellow)),
             radius = this.size.minDimension / 2,

@@ -86,6 +86,14 @@ airplane mode.
   files and the conversations behind interfaces; ViewModel tests use **Turbine**, the database and Compose UI tests
   run under **Robolectric**. No device needed.
 
+## Speed
+
+On a POCO X6 Pro (Dimensity 8300), v0.2.4 writes about **35 tokens/s** with Qwen2.5 0.5B and about **15 tokens/s** with
+Qwen2.5 1.5B (medians, measured on November 11, 2026). It finds the phone's fast CPU cores and keeps the model's threads
+on them, with no setting to change. A side-by-side with two other on-device chat apps, with the method and its caveats,
+is in the [v0.2.4 notes](CHANGELOG.md#024---2026-11-11), and every run is in
+[docs/benchmarks](docs/benchmarks/2026-11-11-poco-x6-pro).
+
 ## Models
 
 All four are instruction-tuned, **Apache-2.0**, published by their authors without a login wall, and pinned to the

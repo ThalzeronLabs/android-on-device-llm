@@ -1,0 +1,10 @@
+fabrica-6t rodada 1 NOSSO  | cpu 49.26 C | AC powered: false USB powered: true temperature: 415 | 238 tokens in 7088 ms, 33.6 tok/s; prompt 47 tokens (0 cached) in 979 ms; END_OF_GENERATION | status=0 f4=1900000 f7=1900000
+fabrica-6t rodada 1 POCKET | cpu 57.979 C | AC powered: false USB powered: true temperature: 412 | FALHOU | 60 palavras | status=0 f4=1900000 f7=1900000
+fabrica-6t rodada 2 NOSSO  | cpu 49.06 C | AC powered: false USB powered: true temperature: 408 | 238 tokens in 7201 ms, 33.1 tok/s; prompt 47 tokens (46 cached) in 324 ms; END_OF_GENERATION | status=0 f4=1900000 f7=1900000
+fabrica-6t rodada 2 POCKET | cpu 47.219 C | AC powered: false USB powered: true temperature: 405 | FALHOU | 75 palavras | status=0 f4=1900000 f7=1900000
+fabrica-6t rodada 3 NOSSO  | cpu 48.331 C | AC powered: false USB powered: true temperature: 400 | 238 tokens in 6912 ms, 34.4 tok/s; prompt 47 tokens (46 cached) in 295 ms; END_OF_GENERATION | status=0 f4=2000000 f7=2000000
+fabrica-6t rodada 3 POCKET | cpu 48.817 C | AC powered: false USB powered: true temperature: 399 | FALHOU | 75 palavras | status=0 f4=2100000 f7=2100000
+fabrica-6t rodada 4 NOSSO  | cpu 48.038 C | AC powered: false USB powered: true temperature: 395 | 238 tokens in 6588 ms, 36.1 tok/s; prompt 47 tokens (46 cached) in 173 ms; END_OF_GENERATION | status=0 f4=2100000 f7=2100000
+fabrica-6t rodada 4 POCKET | cpu 46.644 C | AC powered: false USB powered: true temperature: 396 | FALHOU | 60 palavras | status=0 f4=2100000 f7=400000
+fabrica-6t rodada 5 NOSSO  | cpu 50.963 C | AC powered: false USB powered: true temperature: 395 | 238 tokens in 6605 ms, 36.0 tok/s; prompt 47 tokens (46 cached) in 562 ms; END_OF_GENERATION | status=0 f4=2100000 f7=2100000
+fabrica-6t rodada 5 POCKET | cpu 48.541 C | AC powered: false USB powered: true temperature: 396 | FALHOU | 75 palavras | status=0 f4=1600000 f7=400000

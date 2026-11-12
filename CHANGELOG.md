@@ -6,6 +6,72 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-11
+
+### Fixed
+
+- **Answers are about four times faster.** Tested on a POCO X6 Pro (Dimensity 8300) with Qwen2.5 0.5B: 8.7 tok/s in
+  v0.2.3, 35.4 tok/s now (median of 12 runs). Android ran the model's threads on the phone's slow cores; the updated
+  llama-kotlin keeps them on a persistent thread pool pinned to the fast cores, and the app now draws the answer
+  once per frame instead of once per token, so the screen no longer competes with the model for the CPU.
+- **No more crash on phones without dot-product instructions** (Cortex-A53/A73 phones, and x86_64 emulators running
+  the arm64 build): the app closed on the first answer with SIGILL. The right CPU code is now picked at start-up.
+- The speed badge showed the previous answer's speed while a new one was being written; it now shows the live speed.
+- The battery banner said answers use "every CPU core"; they use the fastest cores.
+
+### Changed
+
+- The orb only moves while waiting for an answer to start, and never with "Remove animations" on. An idle screen
+  draws nothing, which also saves battery and lets UI test tools see the screen settle.
+- New `staging` build type: a release build that installs next to the published app, for measuring on a phone.
+
+- Updated [llama-kotlin](https://github.com/ThalzeronLabs/llama-kotlin) to v0.3.0.
+
+### How it compares (one phone, each app as it ships)
+
+I measured this app against two other on-device chat apps on a POCO X6 Pro (MediaTek Dimensity 8300, 4 fast and 4
+efficiency cores) on November 11, 2026. Every app ran with its default settings and the same prompt ("Write a 300 word
+story about a robot who learns to paint"), in a new chat each time. Before each run the CPU cooled below 50 °C, and the
+apps took turns. Each number is the median of the valid runs.
+
+Qwen2.5-0.5B-Instruct, the same file in both apps (`qwen2.5-0.5b-instruct-q4_k_m.gguf` from Qwen's Hugging Face page):
+
+| App | Generation speed (median) |
+|---|---|
+| On-Device LLM v0.2.4 | 35.4 tokens/s (12 runs) |
+| PocketPal AI 1.23.0 | 17.7 tokens/s (5 runs) |
+
+Qwen2.5-1.5B-Instruct, each app with its own build of the model (this app: GGUF Q4_K_M, 1.1 GB; Gallery: LiteRT, 1.6 GB):
+
+| App | Generation speed (median) |
+|---|---|
+| On-Device LLM v0.2.4 (CPU) | 15.2 tokens/s (3 runs) |
+| Google AI Edge Gallery 1.0.23 (GPU, its default) | 8.5 tokens/s (3 runs) |
+
+Most of the 0.5B difference comes from one default. This app finds the phone's fast cores and keeps its threads on them.
+PocketPal starts with 6 threads, and this chip has only 4 fast cores, so part of the work runs on the slower ones. When I
+set PocketPal to 4 threads by hand, it matched this app (36.5 tokens/s, median of 3 runs).
+
+A few caveats:
+- One phone, one day, connected by USB. Your numbers will differ.
+- Each app reports speed its own way. This app counts wall-clock time from the end of the prompt to the last token,
+  which includes more work than PocketPal's counter, so the difference in method favors PocketPal.
+- The answers had different lengths: this app stopped at 238 tokens every time, while PocketPal wrote longer stories.
+- Four PocketPal runs gave no usable reading and were left out. In three of them the model kept repeating itself (twice
+  until its 2,048-token context ran out, once still writing when the reading was taken), and one showed the numbers from
+  the previous chat. Every run, including the excluded ones, is in
+  [docs/benchmarks/2026-11-11-poco-x6-pro](docs/benchmarks/2026-11-11-poco-x6-pro).
+- The 1.5B rows compare different model files, and GPU against CPU, so they show what each app gives you out of the box,
+  not one engine against the other.
+
+PocketPal AI and Google AI Edge Gallery are the names of their respective owners' products. I'm not affiliated with
+either project, and both are good open-source apps.
+
+### Known issue
+
+- Updating from v0.1.0 needs an uninstall first (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`): v0.1.0 was signed with a
+  one-off key. From v0.2.1 on, every release is signed with the same demo key and updates in place.
+
 ## [0.2.3] - 2026-11-02
 
 ### Changed
@@ -92,7 +158,8 @@ First public release.
   the workflow and attaches it, with its SHA-256, to a GitHub release.
 - Unit tests for the downloader (fake server and a real local HTTP socket), the model source and the ViewModel.
 
-[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ThalzeronLabs/android-on-device-llm/compare/v0.2.0...v0.2.1

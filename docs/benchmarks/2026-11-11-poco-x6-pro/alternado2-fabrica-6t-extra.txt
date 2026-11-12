@@ -1,0 +1,4 @@
+fabrica-6t-extra rodada 1 NOSSO  | cpu 48.649 C | AC powered: false USB powered: true temperature: 417 | 238 tokens in 6911 ms, 34.4 tok/s; prompt 47 tokens (0 cached) in 786 ms; END_OF_GENERATION | status=0 f4=1900000 f7=1900000
+fabrica-6t-extra rodada 1 POCKET | cpu 47.761 C | AC powered: false USB powered: true temperature: 413 | text="57ms/token, 17.69 tokens/sec, 1058ms TTFT" | ~292 palavras (≈1,3 token por palavra em inglês) | status=0 f4=1900000 f7=1900000
+fabrica-6t-extra rodada 2 NOSSO  | cpu 48.125 C | AC powered: false USB powered: true temperature: 412 | 238 tokens in 7069 ms, 33.7 tok/s; prompt 47 tokens (46 cached) in 177 ms; END_OF_GENERATION | status=0 f4=1900000 f7=1900000
+fabrica-6t-extra rodada 2 POCKET | cpu 50.329 C | AC powered: false USB powered: true temperature: 410 | text="65ms/token, 15.47 tokens/sec, 1090ms TTFT" | ~303 palavras (≈1,3 token por palavra em inglês) | status=0 f4=1900000 f7=1900000

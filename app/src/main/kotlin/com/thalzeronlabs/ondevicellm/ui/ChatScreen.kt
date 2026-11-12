@@ -220,7 +220,7 @@ private fun Header(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onMenu) { Icon(AppIcons.Menu, contentDescription = "Conversations") }
-        Orb(size = 30.dp, active = state.generating)
+        Orb(size = 30.dp, active = state.generating && state.messages.lastOrNull()?.text.isNullOrEmpty())
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -320,7 +320,7 @@ fun BatteryBanner(battery: BatteryStatus?, generating: Boolean, onStop: () -> Un
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
             Text(
-                "Answers use every CPU core, so they are kept short (${ChatUiState.SAVER_MAX_TOKENS} tokens).",
+                "Answers run on the fastest CPU cores, so they are kept short (${ChatUiState.SAVER_MAX_TOKENS} tokens).",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
@@ -470,7 +470,7 @@ fun MessageBubble(message: UiMessage, streaming: Boolean, onCopy: (String) -> Un
         }
     } else {
         Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Box(Modifier.padding(top = 4.dp)) { Orb(size = 26.dp, active = streaming) }
+            Box(Modifier.padding(top = 4.dp)) { Orb(size = 26.dp, active = streaming && message.text.isEmpty()) }
             Spacer(Modifier.width(10.dp))
             Box(
                 Modifier

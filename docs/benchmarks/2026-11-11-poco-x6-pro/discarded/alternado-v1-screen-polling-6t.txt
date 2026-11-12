@@ -1,0 +1,6 @@
+rodada 1 NOSSO  | cpu 48.351 C bat 405 | 238 tokens in 7637 ms, 31.2 tok/s; prompt 47 tokens (46 cached) in 549 ms; END_OF_GENERATION
+rodada 1 POCKET | cpu 49.907 C bat 404 | text="59ms/token, 16.86 tokens/sec, 1132ms TTFT"
+rodada 2 NOSSO  | cpu 48.283 C bat 404 | 238 tokens in 7140 ms, 33.3 tok/s; prompt 47 tokens (46 cached) in 250 ms; END_OF_GENERATION
+rodada 2 POCKET | cpu 49.308 C bat 406 | text="54ms/token, 18.42 tokens/sec, 1108ms TTFT"
+rodada 3 NOSSO  | cpu 52.716 C bat 405 | 238 tokens in 7195 ms, 33.1 tok/s; prompt 47 tokens (46 cached) in 176 ms; END_OF_GENERATION
+rodada 3 POCKET | cpu 48.69 C bat 405 | 
