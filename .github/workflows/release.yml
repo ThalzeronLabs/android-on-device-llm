@@ -126,6 +126,8 @@ jobs:
           mkdir -p dist
           cp "$apk" "dist/$name"
           (cd dist && sha256sum "$name" > SHA256SUMS.txt)
+          # the licenses of everything bundled in the APK travel with it
+          cp THIRD-PARTY-NOTICES.txt dist/
           cat dist/SHA256SUMS.txt
 
       - name: Write the release notes
