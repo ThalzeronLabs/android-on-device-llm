@@ -187,4 +187,4 @@ are a good place to start. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [chang
 Apache-2.0 © Esdras Souza (Thalzeron Labs). The models are downloaded from their authors' official Hugging Face
 repositories under their own licenses (all Apache-2.0, see [Models](#models)).
 
-The release builds bundle third-party code; their licenses and notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also attached to every release.
+The release builds bundle third-party code; their licenses and notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which is also attached to every release and packed inside each build as `assets/THIRD-PARTY-NOTICES.txt`.
